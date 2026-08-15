@@ -29,7 +29,8 @@ const DEFAULT_CHAIN_ID = '8453'
 
 /** 3 pages x 50 tx. The window diversity and cadence are computed over. */
 export const WINDOW_PAGES = 3
-export const WINDOW_MAX_TXS = 150
+export const WINDOW_PAGE_SIZE = 50
+export const WINDOW_MAX_TXS = WINDOW_PAGES * WINDOW_PAGE_SIZE
 
 const MAX_RETRIES = 3
 const BASE_BACKOFF_MS = 500
@@ -64,29 +65,23 @@ export type EtherscanTx = {
   blockNumber: string
   from: string
   to: string
+  /** Set instead of `to` when the transaction created a contract. */
+  contractAddress?: string
+}
+
+/** A window transaction, normalized away from the endpoint that produced it. */
+export type WindowTx = {
+  hash: string
+  /** Milliseconds since epoch, null when unparseable. */
+  timestampMs: number | null
+  from: string | null
+  to: string | null
 }
 
 type EtherscanTxListResponse = {
   status: string
   message: string
   result: EtherscanTx[] | string
-}
-
-type V2AddressRef = { hash: string } | null
-
-/** Transaction as returned by the v2 API. */
-export type V2Transaction = {
-  hash: string
-  /** ISO-8601, null while the transaction is still pending. */
-  timestamp: string | null
-  from: V2AddressRef
-  to: V2AddressRef
-  created_contract?: V2AddressRef
-}
-
-type V2TransactionsPage = {
-  items?: V2Transaction[]
-  next_page_params?: Record<string, string | number> | null
 }
 
 /** /counters returns every value as a STRING. Converted here, once. */
@@ -108,7 +103,7 @@ export type AddressCounters = {
 export type AddressHistory = {
   address: string
   firstTransaction: EtherscanTx | null
-  window: V2Transaction[]
+  window: WindowTx[]
   counters: AddressCounters
   fetchedAt: string
   blockscoutUrl: string
@@ -255,24 +250,56 @@ export async function fetchFirstTransaction(address: string): Promise<EtherscanT
   return body.result[0] ?? null
 }
 
-/** Call 2: the last <= 150 transactions, in up to 3 pages. */
+function toWindowTx(tx: EtherscanTx): WindowTx {
+  const seconds = Number(tx.timeStamp)
+  return {
+    hash: tx.hash,
+    timestampMs: Number.isFinite(seconds) ? seconds * 1_000 : null,
+    from: tx.from || null,
+    // Contract creations carry the new address in contractAddress, not `to`.
+    to: tx.to || tx.contractAddress || null,
+  }
+}
+
+/**
+ * Call 2: the last <= 150 transactions, in up to 3 pages.
+ *
+ * Served by the Etherscan-compatible txlist rather than v2
+ * /addresses/{addr}/transactions, for three measured reasons (2026-08-15):
+ * v2 answered 500 for 23 of 30 addresses during the first calibration run while
+ * this route stayed up; v2 takes ~20s per page against ~2s here; and v2 paginates
+ * by cursor, so its pages must be walked in sequence, while numbered pages are
+ * fetched in parallel. One round trip instead of three matters in a live demo.
+ */
 export async function fetchTransactionWindow(
   address: string,
   maxPages = WINDOW_PAGES,
-): Promise<V2Transaction[]> {
-  const items: V2Transaction[] = []
-  let params: Record<string, string | number> | null = {}
+): Promise<WindowTx[]> {
+  const pages = await Promise.all(
+    Array.from({ length: maxPages }, (_unused, index) =>
+      request<EtherscanTxListResponse>(
+        etherscanUrl({
+          module: 'account',
+          action: 'txlist',
+          address,
+          sort: 'desc',
+          page: index + 1,
+          offset: WINDOW_PAGE_SIZE,
+        }),
+        `txlist page ${index + 1}`,
+      ),
+    ),
+  )
 
-  for (let page = 0; page < maxPages && params !== null; page += 1) {
-    const body: V2TransactionsPage = await request<V2TransactionsPage>(
-      v2Url(`addresses/${address}/transactions`, params),
-      'transactions',
-    )
-    items.push(...(body.items ?? []))
-    params = body.next_page_params ?? null
+  // Pages are fetched concurrently, so a transaction landing mid-fetch can shift
+  // across page boundaries and appear twice. Key by hash.
+  const window = new Map<string, WindowTx>()
+  for (const body of pages) {
+    if (!Array.isArray(body.result)) continue // "No transactions found"
+    for (const tx of body.result) window.set(tx.hash, toWindowTx(tx))
   }
 
-  return items
+  return [...window.values()]
 }
 
 /** Call 3: lifetime counters. Values arrive as strings and are converted here. */
@@ -286,13 +313,25 @@ export async function fetchCounters(address: string): Promise<AddressCounters> {
   }
 }
 
-/** The three calls together: everything one verify needs. */
+/**
+ * The three calls together: everything one verify needs.
+ *
+ * Blockscout computes /counters lazily: the first request for a cold address
+ * can answer 0 while the real count is in the thousands, and a later request
+ * answers correctly. The window is a subset of all transactions, so a count
+ * BELOW the window size is proof the counter is cold. One re-read fixes it;
+ * signals.ts downgrades to a window lower bound if it is still inconsistent.
+ */
 export async function fetchAddressHistory(address: string): Promise<AddressHistory> {
-  const [firstTransaction, window, counters] = await Promise.all([
+  const [firstTransaction, window, firstCounters] = await Promise.all([
     fetchFirstTransaction(address),
     fetchTransactionWindow(address),
     fetchCounters(address),
   ])
+
+  const isCold =
+    firstCounters.transactionsCount !== null && firstCounters.transactionsCount < window.length
+  const counters = isCold ? await fetchCounters(address) : firstCounters
 
   return {
     address,

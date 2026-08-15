@@ -6,11 +6,7 @@
  * consumer can state the limitation instead of hiding it.
  */
 
-import {
-  WINDOW_MAX_TXS,
-  type AddressHistory,
-  type V2Transaction,
-} from './blockscout.js'
+import { WINDOW_MAX_TXS, type AddressHistory, type WindowTx } from './blockscout.js'
 
 const MS_PER_DAY = 86_400_000
 
@@ -43,20 +39,14 @@ export type Signals = {
 }
 
 /** The other side of a transaction, or null for a self-send. */
-function counterpartyOf(tx: V2Transaction, address: string): string | null {
+function counterpartyOf(tx: WindowTx, address: string): string | null {
   const self = address.toLowerCase()
-  const from = tx.from?.hash?.toLowerCase() ?? null
-  const to = tx.to?.hash?.toLowerCase() ?? tx.created_contract?.hash?.toLowerCase() ?? null
+  const from = tx.from?.toLowerCase() ?? null
+  const to = tx.to?.toLowerCase() ?? null
 
   if (from !== null && from !== self) return from
   if (to !== null && to !== self) return to
   return null
-}
-
-function timestampMs(tx: V2Transaction): number | null {
-  if (tx.timestamp === null || tx.timestamp === undefined) return null
-  const ms = Date.parse(tx.timestamp)
-  return Number.isFinite(ms) ? ms : null
 }
 
 function round(value: number, decimals: number): number {
@@ -85,15 +75,20 @@ export function deriveSignals(history: AddressHistory): Signals {
     const counterparty = counterpartyOf(tx, address)
     if (counterparty !== null) counterparties.add(counterparty)
 
-    const ms = timestampMs(tx)
+    const ms = tx.timestampMs
     if (ms === null) continue
     const ageMs = now - ms
     if (ageMs <= MS_PER_DAY) txs24h += 1
     if (ageMs <= 7 * MS_PER_DAY) txs7d += 1
   }
 
-  const txCountExact = counters.transactionsCount !== null
-  const txCount = counters.transactionsCount ?? window.length
+  // A lifetime count below the window size is impossible: the window is a subset
+  // of all transactions. It means /counters is missing or still cold, so report
+  // the window as a lower bound instead of a number known to be wrong.
+  const countIsUsable =
+    counters.transactionsCount !== null && counters.transactionsCount >= window.length
+  const txCountExact = countIsUsable
+  const txCount = countIsUsable ? (counters.transactionsCount as number) : window.length
 
   return {
     address,
