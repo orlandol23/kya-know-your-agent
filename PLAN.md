@@ -63,24 +63,24 @@ Custo por verify: 3 a 5 requests, independente do tamanho do endereço. Diversid
 
 # 2 · Plano por dia
 
-Cada dia cabe num Bloco Inegociável de 2h.
+Cada dia cabe num Bloco Inegociável de 2h. Datas reais: D1 foi 13/08; D2 escorregou para 15/08 por causa da Q&A do Marko.
 
 | Dia | Data | Entrega funcionando ao fim | Cortável se atrasar |
 |---|---|---|---|
-| **D1** | 13/08 | Scaffold + `blockscout.ts` + `collect.ts` para 1 endereço: os 4 sinais impressos no terminal | Nada. É a fundação. |
-| **D2** | 14/08 | `addresses.csv` com 30 endereços + `signals.csv` + `calibrate.ts` imprimindo percentis + limiares gravados em `config.ts` | Reduzir para 20 endereços |
-| **D3** | 15/08 | `score` + `verdict` + `cli.ts`: veredito para qualquer endereço | Nada |
-| **D4** | 16/08 | `attest.ts` + `server.ts`: `curl /verify?address=` devolve atestado assinado, com snippet de verificação no README | Nada |
-| **D5** | 17/08 | `gate.ts` + `demo/`: wallet nova recebe 403, wallet com histórico paga e recebe 200. Timebox de 1h para x402 real; fallback é header sintético | Settlement real |
-| **D6** | 18/08 | `ui/index.html`: dois painéis, badge de veredito, 4 sinais, link de evidência | Animações |
-| **D7** | 19/08 | Modo `--offline` com fixtures funcionando, endereço com 0 tx, endereço inválido, README final | **`--offline` NÃO é cortável.** É a rede de segurança da demo ao vivo. |
-| **D8** | 20/08 | Ensaio da demo ao vivo, ponta a ponta, cronometrado. Gravar um vídeo de backup para tocar caso a demo falhe no dia. | |
-| **D9** | 21/08 | Segundo ensaio, roteiro dos 10 minutos fechado, ambiente da apresentação testado (Meet, compartilhamento de tela, terminal legível). **Tudo pronto ao fim deste dia.** | |
+| **D1** | 13/08 ✅ | Scaffold + `blockscout.ts` + `collect.ts`: os 4 sinais impressos no terminal, na Pro API | feito |
+| **D2** | 15/08 | `addresses.csv` com 30 endereços (incluindo os casos óbvios da tabela do Marko) + `signals.csv` + `calibrate.ts` imprimindo percentis + limiares em `config.ts` | Reduzir para 20 endereços |
+| **D3** | 16/08 | `score.ts` com **média geométrica + confidence + compliance gate** + `verdict` + `cli.ts` | Nada |
+| **D4** | 17/08 | `attest.ts` + `server.ts`: `curl /verify?address=` devolve atestado assinado, com snippet de verificação no README | Nada |
+| **D5** | 18/08 | `gate.ts` + `demo/`: wallet nova recebe 403, wallet com histórico paga e recebe 200. Timebox 1h para x402 real; fallback é header sintético. **Se sobrar tempo: funding provenance** (primeiro inbound + lista curta de CEX e mixers) | Settlement real, funding |
+| **D6** | 19/08 | `ui/index.html`: dois painéis, badge de veredito, sinais, link de evidência, e **o motivo do bloqueio em texto na tela** | Animações |
+| **D7** | 20/08 | Modo `--offline` com fixtures funcionando, endereço com 0 tx, endereço inválido, README final. **`--offline` NÃO é cortável.** | Nada |
+| **D8** | 21/08 | Roteiro dos 10 min com o caso específico, ensaio ao vivo cronometrado EM INGLÊS, vídeo de backup, **mandar a apresentação ao Marko para revisão** | |
+| **D9** | 21/08 noite | Segundo ensaio, ambiente testado (Meet, tela, terminal legível). **Tudo pronto.** | |
 | **D10** | 22/08 | **APRESENTAÇÃO ÀS 10h BRT no Google Meet.** Não é dia de trabalho. | |
 
-**Ordem de corte global:** animações da UI, depois a UI inteira (demo vira CLI + curl no vídeo), depois settlement real (header sintético).
+**Ordem de corte global:** animações da UI, depois funding provenance, depois settlement real (header sintético). A UI em si **não é mais cortável**: o Marko e o Jimmy concordam que apresentação e UI pesam mais que backend numa hackathon, e o Yuri é não-técnico.
 
-**Stories da semana 1 vencem sábado 15/08.** Story 1 = tabela de calibração (D2). Story 2 = CLI mostrando trusted vs suspicious (D3). Fecha a obrigação sem esforço extra.
+**Stories da semana 1 vencem sábado 15/08.** Story 1 = print do CLI rodando. Story 2 = tabela de calibração. Ambos com `#HackathonWeb3Global` + `@borderlesscoding`.
 
 ---
 
@@ -103,11 +103,12 @@ feat: signal collection script for a labeled address set
 data: calibration set of 30 labeled Base addresses with provenance
 feat: calibration report with per-group percentiles and suggested thresholds
 data: extracted signals for the calibration set
-feat: deterministic 0-100 score from calibrated thresholds
+feat: weighted geometric-mean reputation score with confidence and compliance gate
 feat: trusted/unknown/suspicious verdict with cutoffs read from the data
 feat: EIP-191 signed attestation with verifiable Blockscout evidence link
 feat: GET /verify returns a signed attestation
 feat: x402 gate rejects suspicious payers with 403 before settlement
+feat: funding provenance signal from first inbound transfer (CEX vs mixer)
 demo: paid endpoint on Base Sepolia protected by the KYA gate
 demo: two agents side by side, fresh wallet blocked, established wallet served
 feat: split-screen UI comparing two agents
@@ -155,12 +156,12 @@ signals.csv      address, label, first_seen, age_days, tx_count,
                  fetched_at, blockscout_url
 ```
 
-## c) Derivação dos limiares
+## c) Normalização por sinal (os limiares continuam saindo dos dados)
 
-Cada sinal vale 0 a 25 pontos, com pesos iguais por decisão (v0.1 não tem número mágico; aprender pesos é marco futuro).
+Cada sinal é normalizado para 0..1 com clamp linear entre dois percentis do conjunto de referência:
 
 ```
-pts(x) = clamp((x - ZERO) / (FULL - ZERO), 0, 1) * 25
+norm(x) = clamp((x - ZERO) / (FULL - ZERO), 0, 1)
 
 ZERO = p75 do grupo fresh          abaixo disso, indistinguível de wallet nova
 FULL = p25 do grupo established    a partir daqui, típico de endereço estabelecido
@@ -170,9 +171,61 @@ FULL = p25 do grupo established    a partir daqui, típico de endereço estabele
 
 **O limiar é output do repositório, não input.**
 
+## c2) A função de reputação: média geométrica ponderada
+
+> Fonte: Marko Brkic, Q&A Week 12 (15/08). Substitui a soma linear de 25 pontos por sinal que estava aqui antes.
+
+```
+score = 1000 · G · penalty · confidence
+
+G          = ∏ max(s_k, EPS) ^ w_k          média geométrica dos sinais normalizados
+EPS        = 0.02                            piso: um eixo fraco mas não-zero não anula tudo
+penalty    = cadence_penalty(...)            multiplicativo, 1.0 quando nada é anômalo
+confidence = evidence_mass / (evidence_mass + 25)
+             o score "sobe conforme merece": carteira com pouca evidência pontua baixo
+             por falta de dados, não por ser julgada má
+```
+
+Por que média geométrica e não soma: **um eixo fraco não pode ser compensado por um eixo forte.** Com soma, um agente com funding suspeito compensa com volume alto. Com produto, não compensa. É a forma certa para reputação.
+
+**Pesos, pelo princípio "pese pelo custo de forjar":**
+
+```
+sinal          peso    na v0.1?   nota
+funding        0.22    se der     primeiro inbound: CEX vs mixer. Mais difícil de forjar.
+contracts      0.18    roadmap    contrapartes são protocolos rotulados? Caro de forjar.
+ratings        0.20    roadmap    camada humana, só quem usou pode votar.
+familiarity    0.20    roadmap    contata vendedores x402 com frequência.
+maturity       0.10    ✅ tem     idade da conta. Forjável esperando.
+volume         0.10    ✅ tem     contagem. Barato de forjar com self-sends.
+```
+
+Na v0.1, os sinais ausentes (ratings, familiarity, contracts se não der) **saem da fórmula e os pesos restantes são renormalizados para somar 1.** Diversidade e ritmo, que você já tem, entram como sub-componentes de contracts/familiarity com peso pequeno enquanto os sinais completos não existem. Declare no README qual subconjunto está ativo.
+
+`evidence_mass` na v0.1 = número de transações observadas na janela (0 a 150). É simples, é honesto, e faz a wallet zerada cair naturalmente para score ~0.
+
+**Compliance gate, separado do score e binário:**
+
+```
+if funded_by_known_mixer or sanctioned:
+    return { score: 0, gated: true }
+```
+
+Mixer não pontua mal. Bloqueia. É a diferença entre "suspeito" e "proibido".
+
+**cadence_penalty (multiplicativo, opcional na v0.1):**
+
+```
+burst_ratio > 50        × 0.85    p99 da taxa / mediana da taxa
+regime_change           × 0.80    mudança abrupta de comportamento (chave comprometida?)
+cotiming_corr > 0.9     × 0.60    move em sincronia com um cluster
+```
+
+Só o `burst_ratio` é barato de calcular com o que você já busca. Os outros dois são roadmap.
+
 ## d) Cortes de veredito
 
-Rode o score sobre os 30 endereços com os limiares acima. Os cortes vão no **vão vazio entre os clusters**:
+Rode o score sobre os 30 endereços. Os cortes vão no **vão vazio entre os clusters**:
 
 ```
 SUSPICIOUS_MAX = maior score do grupo fresh (ou o teto do vão acima dele)
@@ -180,6 +233,17 @@ TRUSTED_MIN    = menor score do grupo established (ou o piso do vão abaixo dele
 ```
 
 `calibrate.ts` fecha imprimindo a tabela de separação: quantos de cada grupo caíram em cada veredito. A meta honesta: 10 de 10 established viram trusted, 10 de 10 fresh viram suspicious, e o grupo mid se distribui entre unknown e as bordas.
+
+**A tabela de casos óbvios é o benchmark.** O Marko foi explícito: validar em escala exigiria simular a rede inteira; para a hackathon, cobrir os casos óbvios numa tabela é o equivalente de benchmark. Então o `addresses.csv` deve conter, além dos 3 estratos, o que der para achar de:
+
+```
+wallet fresca                              → suspicious
+wallet fundada por CEX, uso normal         → trusted
+wallet que tocou mixer (se achar)          → gated
+wallet com 1 contraparte só, volume alto   → suspicious ou unknown (o vitalik.eth da Base)
+```
+
+Se algum desses não existir no conjunto, diga que é o próximo a cobrir. Não invente.
 
 ## e) A resposta pronta para a pergunta do juiz
 
@@ -191,9 +255,24 @@ TRUSTED_MIN    = menor score do grupo established (ou o piso do vão abaixo dele
 n=30 é conjunto de referência, não estatística
 diversidade e ritmo são janelados nas últimas ≤150 transações
 mede histórico, não intenção
+na v0.1 só um subconjunto dos pesos está ativo; o resto é roadmap declarado
 ```
 
 Nenhuma delas enfraquece a v0.1 se você as disser primeiro.
+
+## g) Fontes para funding provenance (se der tempo no D4-D5)
+
+```
+eth-labels (dawsbot)      GitHub, 169k+ endereços rotulados em chains EVM, importável
+evm-labels (Earnifi)      GitHub, importável
+Dune Spellbook            tabelas de labels com CEX, open source
+⚠️ community-maintained: verificar antes de confiar
+
+CEX hot wallets   conhecidas nos explorers (Blockscout já rotula várias)
+Mixers            Tornado Cash, Houdini Swap. Reconhecer é heurístico:
+                  "traversals de dinheiro muito estranhos". Na v0.1, uma lista
+                  curta de endereços conhecidos basta para o compliance gate.
+```
 
 **Timebox: 2 blocos.** D2 inteiro, com transbordo máximo de 30 min no D3. Refinar limiar infinitamente é o padrão nº 1 do mapa de autossabotagem com outro nome.
 
@@ -222,8 +301,10 @@ KYA answers the missing question: **who is this agent, and what has it done?**
 Returns a signed attestation: `{ verdict, score, signals, evidence, issued_at,
 signature }`.
 
-- **Deterministic.** 4 signals from the agent's Base history: age, volume,
-  counterparty diversity, recent cadence. No LLM anywhere in the pipeline.
+- **Deterministic.** Signals from the agent's Base history: age, volume,
+  counterparty diversity, recent cadence, and funding provenance. Combined
+  with a weighted geometric mean, so a weak axis cannot be compensated by a
+  strong one. No LLM anywhere in the pipeline.
 - **Calibrated, not invented.** Thresholds are derived from a labeled reference
   set of 30 real addresses. `scripts/calibrate.ts` reproduces every number.
 - **Verifiable without trusting this API.** `evidence` links to the raw history
@@ -248,9 +329,11 @@ an `X-KYA-Verdict` header; blocking it is the seller's choice.
 
 ## Deliberately not in v0.1
 
-No LLM. No dangerous-contract list. No agent: this is the verification
-primitive, not a wallet with a chatbot. No on-chain verifier yet: the next
-milestone is an EIP-712 attestation a Solidity contract can consume.
+No LLM. No agent: this is the verification primitive, not a wallet with a
+chatbot. Roadmap, in order: labelled-contract signal, a user rating layer where
+only addresses that actually paid an agent can rate it, ecosystem familiarity,
+an EIP-712 attestation a Solidity contract can consume, and a ZK credential
+binding an agent to its principal.
 
 Built solo in 14 days for the Borderless Web3 hackathon (Aug 2026).
 ````
@@ -325,8 +408,10 @@ v0.1   ESTA ENTREGA    track record -> veredito -> atestado assinado -> gate
                        responde: "o que esse agente já fez?"
                        Trilha A do Miloski. Não depende de ninguém.
 
-v0.2   próximo         atestado em EIP-712, para que um CONTRATO consuma
-                       extensão técnica da mesma primitiva
+v0.2   próximo         camadas de sinal restantes: contratos rotulados,
+                       rating humano (só quem usou pode votar), familiaridade
+                       com o ecossistema x402. Depois, atestado em EIP-712
+                       para que um CONTRATO consuma.
 
 v0.3   depois          credencial ZK ligando o agente a um principal,
                        com escopo de autoridade
@@ -347,47 +432,93 @@ Cobertura em relação ao RFP: a v0.1 já entrega duas das quatro wedges do KYA 
 QUANDO    22/08/2026, 10h BRT, Google Meet
 DURAÇÃO   10 minutos por time
 FORMATO   demo AO VIVO remota, compartilhando tela. Não é vídeo gravado.
+IDIOMA    INGLÊS (confirmado pelo Yuri). Ensaiar em inglês, com roteiro escrito
+          para as transições, que é onde se trava.
 PLATEIA   banca (Yuri, Miloski, Jimmy) + olheiros do Crypto Valley que assistem
 ```
 
-Roteiro dos 10 minutos:
+## ⚠️ O diagnóstico do Marko: o pitch estava genérico
+
+> *"Não faz sentido financeiro dar um serviço que custa um dólar por um centavo. Você precisa de um caso onde banir wallet fresca faz sentido. Se você vende algo qualquer, reputação não importa tanto. O que está sendo oferecido precisa ter risco real de mau ator."*
+
+"Any seller" é categoria, não caso. O pitch precisa de **um vendedor específico que se importa com quem compra porque o que ele vende pode ser mal usado.**
+
+Os dois casos que ele deu:
 
 ```
-0:00-1:00   PROBLEMA em linguagem humana, sem jargão
-            "o explorador oficial do x402 não deixa consultar um agente"
-            alvo: Yuri e os olheiros, que não têm contexto do bootcamp
+MODELO PERIGOSO      alguém hospeda um modelo muito bom de biologia/química.
+                     É crítico saber que quem usa é seguro. O vendedor SE IMPORTA
+                     com o comprador porque o que vende tem risco de mau uso.
+                     Posicionamento sugerido: "AI model marketplace onde os
+                     vendedores se importam se o comprador é um bom agente".
 
-1:00-5:00   DEMO AO VIVO do core flow
-            dois endereços lado a lado, um passa e um é barrado
-            alvo: Jimmy
+PREDICTION MARKETS   o insider da Google criou wallet fresca, apostou US$200K
+                     no mercado "palavra mais buscada de 2026" e ganhou.
+                     Match-fixing em e-sports. "Ninguém usa a wallet principal
+                     para apostar 100 mil num resultado criminoso: cria wallet
+                     fresca, funda por endereço suspeito."
+```
 
-5:00-7:30   COMO FUNCIONA, curto
-            os 4 sinais, a calibração medida, o atestado assinado
-            "o score mede histórico, não intenção"
+**Escolha uma história e conte-a inteira.** Ela não muda o código, muda a moldura. A recomendação: **modelo perigoso**, porque fica dentro do x402 (a demo é um endpoint pago) e não exige explicar prediction market a uma banca que não veio para isso.
+
+## Roteiro dos 10 minutos (divisão sugerida por ele: 3-5 demo, 5 conversa)
+
+```
+0:00-1:30   O CASO, em linguagem humana, sem jargão
+            "Imagine que você hospeda um modelo de química muito bom e cobra
+             por chamada via x402. Agentes pagam um centavo e recebem a resposta.
+             Chega um pagamento válido de uma wallet criada hoje, financiada por
+             um mixer. Você não tem como saber. Você serve."
+            + a evidência: "o explorador oficial do x402 indexa só o vendedor;
+              não existe como olhar o comprador"
+            alvo: Yuri e os olheiros
+
+1:30-5:30   DEMO AO VIVO, do ponto de vista do VENDEDOR
+            a tela mostra requests chegando no endpoint.
+            Agente A: 8 meses, financiado por CEX, 58 contrapartes
+              → 200 OK, recurso entregue, pagamento liquidado
+            Agente B: 3 dias, financiado por mixer, 1 contraparte
+              → 403, e NA TELA o motivo: "funded through a mixer, 3 days old"
+            "Prevenimos um mau uso do serviço." Essa é a história.
+            alvo: Jimmy, e é o que o Yuri leva embora
+
+5:30-7:30   COMO FUNCIONA, curto
+            os sinais, a média geométrica ("um eixo fraco não compensa com um
+            forte"), a calibração medida em 30 endereços, o atestado assinado
+            "o score mede histórico, não intenção. Mesmo princípio do antispam."
+            + a tabela de casos óbvios (é o benchmark da hackathon)
             alvo: Miloski
 
-7:30-9:00   POR QUE É UMA SEMENTE + próximo marco
+7:30-9:00   POR QUE É UMA SEMENTE + roadmap nomeado
             "KYA responde duas perguntas: o que esse agente já fez, e em nome
              de quem ele age. Em 14 dias resolvi a primeira, que é a que não
-             depende de ninguém. A segunda é o próximo marco."
+             depende de ninguém."
+            roadmap: contratos rotulados, camada de rating humano (só quem usou
+            pode votar), familiaridade com o ecossistema, EIP-712, credencial ZK
+            "não preciso entregar o produto completo; digo o que vou adicionar"
             alvo: Miloski e os olheiros
 
 9:00-10:00  buffer e perguntas
 ```
 
-Duas regras que vêm do formato ao vivo:
+## Regras que vêm do formato
 
-**Nada de referência interna.** Os olheiros não sabem o que é a Trilha A nem quem é o Marko. Toda afirmação precisa se sustentar sozinha, com evidência.
+**Nada de referência interna.** Os olheiros não sabem o que é a Trilha A nem quem é o Marko. Toda afirmação se sustenta sozinha, com evidência.
 
-**Terminal legível.** Fonte grande, tema claro, saída limpa. Um terminal ilegível numa call remota mata a demo mais bem construída.
+**Terminal e UI legíveis.** Fonte grande, tema claro, saída limpa. Um terminal ilegível numa call remota mata a demo mais bem construída.
 
-Não precisa ser inventada no D8. D8 é ensaio.
+**Mostre o que acontece SEM a ferramenta, não o que a ferramenta faz.** É a diferença entre "olha meu score" e "olha o que você está servindo hoje".
+
+**Mandar a apresentação ao Marko no D8.** Ele ofereceu revisar. Discord é o canal preferido dele, responde no mesmo dia.
+
+Não precisa ser inventada no D8. D8 é ensaio, em inglês.
 
 ---
 
-# Antes do D1
+# Checklist antes de codar o D2
 
 ```
-[ ] Testar /counters no navegador e confirmar que devolve transactions_count
-[ ] Ler este plano por completo (seções 4, 7 e 8 são as que você vai defender)
+[ ] Story 1 postado (print do CLI, #HackathonWeb3Global @borderlesscoding)
+[ ] Este plano relido: seções 4c2 (função de reputação), 7, 8 e o pitch
+[ ] addresses.csv começa pelos casos óbvios da tabela do Marko
 ```
