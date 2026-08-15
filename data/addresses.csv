@@ -1,0 +1,72 @@
+# KYA calibration set, 30 Base mainnet addresses, three strata of 10.
+# Labels describe the OBSERVABLE, never good or bad. There is no ground truth of
+# malice: the score measures history, not intent.
+#
+# Sampling frame: EOAs that SENT USDC on Base in blocks 50021246-50021255
+# (2026-08-15), the closest available population to agents paying over x402.
+# 74 candidates were measured; the 27 below were selected by the stated rules,
+# plus 3 locally generated addresses.
+#
+# Stratum rules, all based on observables that are NOT chosen after seeing the
+# signal being calibrated:
+#   fresh        3 generated (zero history by construction) + the 7 youngest
+#                harvested candidates, all first seen < 5 days ago
+#   mid          first seen between 7 and 90 days ago
+#   established  the 10 oldest harvested candidates (first seen > 400 days ago),
+#                excluding infrastructure-scale addresses (> 1M lifetime
+#                transactions), which are exchange or sequencer wallets rather
+#                than agents. Excluded on that rule:
+#                0xf70da97812CB96acDF810712Aa562db8dfA3dbEF (17.5M transactions)
+#                0xBaeD383EDE0e5d9d72430661f3285DAa77E9439F (2.8M transactions)
+#
+# PLAN.md section 4d benchmark cases:
+#   fresh wallet                          COVERED, the whole fresh stratum
+#   CEX-funded wallet, normal use         COVERED with a caveat: two established
+#                                         wallets were funded by an EOA with 7.8M
+#                                         transactions on Base that funded 7 of the
+#                                         74 sampled wallets. Exchange-class by
+#                                         behaviour, but Blockscout has no label for
+#                                         it on Base or Ethereum, so the CEX identity
+#                                         is NOT confirmed. Confirming it needs an
+#                                         external label set (eth-labels, Dune
+#                                         Spellbook), which is the D5 funding
+#                                         provenance task.
+#   mixer-funded wallet                   NOT FOUND. No mixer-linked address turned
+#                                         up in this sample and Blockscout Base
+#                                         exposes no mixer labels to search by. Next
+#                                         to cover, together with the compliance gate.
+#   high volume, single counterparty      COVERED, 0xd8dA...96045 plus two more
+#                                         (0x016a...BA3d, 0xAdC5...D093)
+#
+# Regenerate the signals with: npx tsx scripts/collect.ts
+address,label,provenance,notes
+0xeB94Dd34439e017EBa695678265e44Ea12E16B97,fresh,"generated locally 2026-08-15, key discarded, zero history by construction",never used
+0x4829059F90c8E07c20De76a432891cF4f01FE8E3,fresh,"generated locally 2026-08-15, key discarded, zero history by construction",never used
+0x62f251E7c4DA635d2D1d1c1Fa87BD861FA8096df,fresh,"generated locally 2026-08-15, key discarded, zero history by construction",never used
+0x2C62aD3DcedcDFe50956845A7a7b68412ec54d6f,fresh,"harvested 2026-08-15 from USDC transfers on Base, blocks 50021246-50021255, sender EOA","measured at selection: age 0.0d, 34 tx, 5 counterparties in window"
+0x1F36602a07b4442d724F1f177D95C2F70AB54507,fresh,"harvested 2026-08-15 from USDC transfers on Base, blocks 50021246-50021255, sender EOA","window already full at 150; measured at selection: age 0.7d, 286 tx, 1 counterparty in window"
+0xBEabA203Ef49Ee2828b77b0B7E84839e76092787,fresh,"harvested 2026-08-15 from USDC transfers on Base, blocks 50021246-50021255, sender EOA","PLAN 4d benchmark: fresh wallet funded by an exchange-class hot wallet; measured at selection: age 1.4d, 28 tx, 7 counterparties in window"
+0x820008AE7521A826CEEC4cCB38D62119a6705e0d,fresh,"harvested 2026-08-15 from USDC transfers on Base, blocks 50021246-50021255, sender EOA","measured at selection: age 2.1d, 2 tx, 2 counterparties in window"
+0xfb749349C4187aa282b17fAd7965485c54BC9150,fresh,"harvested 2026-08-15 from USDC transfers on Base, blocks 50021246-50021255, sender EOA","measured at selection: age 3.0d, 50 tx, 5 counterparties in window"
+0xd19E2169Aa2D942978D68aC1316176AE14C360cD,fresh,"harvested 2026-08-15 from USDC transfers on Base, blocks 50021246-50021255, sender EOA","measured at selection: age 3.2d, 48 tx, 5 counterparties in window"
+0x0B53cc25a96f49e6297B0F6EE5dEe593aDf032cd,fresh,"harvested 2026-08-15 from USDC transfers on Base, blocks 50021246-50021255, sender EOA","measured at selection: age 4.6d, 58 tx, 9 counterparties in window"
+0xE892150B093Ca6a446d7bB0F480dA99b4b8f6c0E,mid,"harvested 2026-08-15 from USDC transfers on Base, blocks 50021246-50021255, sender EOA","nearly dormant; measured at selection: age 12.0d, 3 tx, 1 counterparty in window"
+0x31C41a6a5805F6B358A756e4A4ED3B04Bc000000,mid,"harvested 2026-08-15 from USDC transfers on Base, blocks 50021246-50021255, sender EOA","burst activity, one counterparty; measured at selection: age 15.7d, 16949 tx, 1 counterparty in window"
+0x313D333F7D2Ee578825383BCcbB1223eB50f2D56,mid,"harvested 2026-08-15 from USDC transfers on Base, blocks 50021246-50021255, sender EOA","one of 4 sibling wallets funded by the same address; measured at selection: age 20.7d, 458778 tx, 2 counterparties in window"
+0xBa2A243Dafd26febC7731bc98a25A2cfF12c1589,mid,"harvested 2026-08-15 from USDC transfers on Base, blocks 50021246-50021255, sender EOA","nearly dormant; measured at selection: age 26.0d, 5 tx, 1 counterparty in window"
+0xe4b783649178b0f6fE3D8BE941e0Ee34Afd53a52,mid,"harvested 2026-08-15 from USDC transfers on Base, blocks 50021246-50021255, sender EOA","measured at selection: age 33.8d, 39 tx, 8 counterparties in window"
+0x0027f590558f36031C067e89F06c62741a7c81b3,mid,"harvested 2026-08-15 from USDC transfers on Base, blocks 50021246-50021255, sender EOA","burst activity, one counterparty; measured at selection: age 38.4d, 51352 tx, 1 counterparty in window"
+0x026766F33847f20d28b325d652eF22567f9Db1bc,mid,"harvested 2026-08-15 from USDC transfers on Base, blocks 50021246-50021255, sender EOA","measured at selection: age 46.9d, 12 tx, 3 counterparties in window"
+0xA39C469C59270F5403B4641131b89bFE2459889F,mid,"harvested 2026-08-15 from USDC transfers on Base, blocks 50021246-50021255, sender EOA","measured at selection: age 50.1d, 598 tx, 3 counterparties in window"
+0x73b4C9335fA239F9C6DF3d28d5BF5D3cdf4DE736,mid,"harvested 2026-08-15 from USDC transfers on Base, blocks 50021246-50021255, sender EOA","measured at selection: age 86.1d, 22281 tx, 2 counterparties in window"
+0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045,mid,"PLAN.md section 4d, named in the plan (vitalik.eth on Base)","PLAN 4d benchmark: high volume, single counterparty. Older than the stratum by far; kept out of established on purpose, because the plan expects it to land in unknown/suspicious and mid feeds no threshold; measured at selection: age 1102.6d, 37157 tx, 1 counterparty in window"
+0xf7256eD518fa3A8b1dDb2bBb0Cd0071617df7bF4,established,"harvested 2026-08-15 from USDC transfers on Base, blocks 50021246-50021255, sender EOA","ENS mfl-tw.eth; measured at selection: age 1128.2d, 710 tx, 56 counterparties in window"
+0x3c95f06542dcf6490263B2754a7F3dd9bCea0F9f,established,found on D1: sender of the first Base transaction of 0xd8dA...96045,"demo address, locked into the calibration per PLAN risk 3; measured at selection: age 1117.6d, 90 tx, 58 counterparties in window"
+0xA7B9874D15742358fB455Dd56f97C6d19ad74f5C,established,"harvested 2026-08-15 from USDC transfers on Base, blocks 50021246-50021255, sender EOA","measured at selection: age 1096.0d, 182593 tx, 22 counterparties in window"
+0xDFaa75323fB721e5f29D43859390f62Cc4B600b8,established,"harvested 2026-08-15 from USDC transfers on Base, blocks 50021246-50021255, sender EOA","measured at selection: age 1047.6d, 48766 tx, 56 counterparties in window"
+0xeA258496a9311Ffe29CDf920Ca0E8BB4B41c9F04,established,"harvested 2026-08-15 from USDC transfers on Base, blocks 50021246-50021255, sender EOA","PLAN 4d benchmark: funded by an exchange-class hot wallet, sustained use since; measured at selection: age 657.1d, 49092 tx, 3 counterparties in window"
+0x2CfF890f0378a11913B6129B2E97417a2c302680,established,"harvested 2026-08-15 from USDC transfers on Base, blocks 50021246-50021255, sender EOA","PLAN 4d benchmark: funded by an exchange-class hot wallet, sustained use since; measured at selection: age 647.4d, 630702 tx, 28 counterparties in window"
+0x4c2c0F0bB2631B02aC9299C59690914ee7A200B8,established,"harvested 2026-08-15 from USDC transfers on Base, blocks 50021246-50021255, sender EOA","measured at selection: age 596.2d, 125725 tx, 15 counterparties in window"
+0x016ae4d6f575CEE1f095F84B780135E5b3DEBA3d,established,"harvested 2026-08-15 from USDC transfers on Base, blocks 50021246-50021255, sender EOA","single counterparty in window; measured at selection: age 510.4d, 2799 tx, 1 counterparty in window"
+0x1f8083E217729Ec694a6Cd2C62601Fb728881E38,established,"harvested 2026-08-15 from USDC transfers on Base, blocks 50021246-50021255, sender EOA","measured at selection: age 472.0d, 1593 tx, 42 counterparties in window"
+0xAdC589Cf19296310f7E019Cf259f5f5469CdD093,established,"harvested 2026-08-15 from USDC transfers on Base, blocks 50021246-50021255, sender EOA","single counterparty in window; measured at selection: age 404.0d, 9307 tx, 1 counterparty in window"
