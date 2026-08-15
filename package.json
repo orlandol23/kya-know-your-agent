@@ -1,0 +1,23 @@
+{
+  "name": "kya",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Know Your Agent - on-chain reputation for AI agents that pay through x402",
+  "type": "module",
+  "scripts": {
+    "collect": "tsx scripts/collect.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "viem": "^2.21.55",
+    "x402-express": "^1.2.0",
+    "x402-fetch": "^1.2.0"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}
