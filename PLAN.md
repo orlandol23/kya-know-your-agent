@@ -52,12 +52,18 @@ Não é paginação completa. São três chamadas limitadas, com custo constante
 
 ```
 1. txlist sort=asc & page=1 & offset=1      primeira tx = IDADE   (Etherscan-compatible)
-2. /addresses/{addr}/transactions            até 3 páginas (150 tx)
-                                             = DIVERSIDADE + RITMO
-3. /addresses/{addr}/counters                transactions_count = VOLUME
+2. txlist paginado, 3 páginas em paralelo   até 150 tx            (Etherscan-compatible)
+                                            = DIVERSIDADE + RITMO
+3. /addresses/{addr}/counters               transactions_count = VOLUME
 ```
 
 Custo por verify: 3 a 5 requests, independente do tamanho do endereço. Diversidade e ritmo ficam **janelados** nas últimas ≤150 transações, e isso é declarado no atestado.
+
+## ⚠️ Duas correções descobertas no D2 (15/08)
+
+**A janela mudou de rota.** O endpoint v2 `/addresses/{addr}/transactions` devolveu 500 em 23 de 30 endereços durante a coleta. A janela passou a usar `txlist` paginado, que é a mesma rota Etherscan-compatible da chamada 1. Validado: números idênticos nas duas rotas (0x3c95… deu 90 tx / 58 contrapartes pelas duas). Ganho colateral: ~10x mais rápido (2s contra 20s por página) e com páginas numeradas, então as 3 vão em paralelo em vez de seguir cursor. Para uma demo ao vivo, é a diferença entre 2s e 60s por verify.
+
+**`/counters` é computado preguiçosamente.** A primeira chamada num endereço frio devolve 0; uma chamada posterior devolve o valor real. Medido: 51 de 74 endereços mudaram de contagem na segunda leitura, incluindo 0 → 145.793. Regra implementada: contagem menor que o tamanho da janela é impossível (a janela é subconjunto do total), então isso é prova de contador frio e dispara uma releitura. Se ainda divergir, reporta a janela como piso com `txCountExact = false`.
 
 ---
 
@@ -68,17 +74,17 @@ Cada dia cabe num Bloco Inegociável de 2h. Datas reais: D1 foi 13/08; D2 escorr
 | Dia | Data | Entrega funcionando ao fim | Cortável se atrasar |
 |---|---|---|---|
 | **D1** | 13/08 ✅ | Scaffold + `blockscout.ts` + `collect.ts`: os 4 sinais impressos no terminal, na Pro API | feito |
-| **D2** | 15/08 | `addresses.csv` com 30 endereços (incluindo os casos óbvios da tabela do Marko) + `signals.csv` + `calibrate.ts` imprimindo percentis + limiares em `config.ts` | Reduzir para 20 endereços |
-| **D3** | 16/08 | `score.ts` com **média geométrica + confidence + compliance gate** + `verdict` + `cli.ts` | Nada |
+| **D2** | 15/08 ✅ | `addresses.csv` com 30 endereços + `signals.csv` + `calibrate.ts` com percentis e limiares. Resultado em 4c1: idade e volume separam, diversidade e ritmo não | feito |
+| **D3** | 16/08 | `config.ts` com os limiares medidos + **funding provenance** (primeiro inbound, lista curta de CEX e mixers) + `score.ts` com **média geométrica + confidence + compliance gate** + `verdict` + `cli.ts` | Funding pode virar D4 se travar; aí os pesos renormalizam para 2 eixos |
 | **D4** | 17/08 | `attest.ts` + `server.ts`: `curl /verify?address=` devolve atestado assinado, com snippet de verificação no README | Nada |
-| **D5** | 18/08 | `gate.ts` + `demo/`: wallet nova recebe 403, wallet com histórico paga e recebe 200. Timebox 1h para x402 real; fallback é header sintético. **Se sobrar tempo: funding provenance** (primeiro inbound + lista curta de CEX e mixers) | Settlement real, funding |
+| **D5** | 18/08 | `gate.ts` + `demo/`: wallet nova recebe 403, wallet com histórico paga e recebe 200. Timebox 1h para x402 real; fallback é header sintético | Settlement real |
 | **D6** | 19/08 | `ui/index.html`: dois painéis, badge de veredito, sinais, link de evidência, e **o motivo do bloqueio em texto na tela** | Animações |
 | **D7** | 20/08 | Modo `--offline` com fixtures funcionando, endereço com 0 tx, endereço inválido, README final. **`--offline` NÃO é cortável.** | Nada |
 | **D8** | 21/08 | Roteiro dos 10 min com o caso específico, ensaio ao vivo cronometrado EM INGLÊS, vídeo de backup, **mandar a apresentação ao Marko para revisão** | |
 | **D9** | 21/08 noite | Segundo ensaio, ambiente testado (Meet, tela, terminal legível). **Tudo pronto.** | |
 | **D10** | 22/08 | **APRESENTAÇÃO ÀS 10h BRT no Google Meet.** Não é dia de trabalho. | |
 
-**Ordem de corte global:** animações da UI, depois funding provenance, depois settlement real (header sintético). A UI em si **não é mais cortável**: o Marko e o Jimmy concordam que apresentação e UI pesam mais que backend numa hackathon, e o Yuri é não-técnico.
+**Ordem de corte global:** animações da UI, depois settlement real (header sintético). O funding provenance **saiu da lista de cortáveis** depois da calibração: sem ele restam só dois eixos na média geométrica. A UI também **não é cortável**: o Marko e o Jimmy concordam que apresentação e UI pesam mais que backend numa hackathon, e o Yuri é não-técnico.
 
 **Stories da semana 1 vencem sábado 15/08.** Story 1 = print do CLI rodando. Story 2 = tabela de calibração. Ambos com `#HackathonWeb3Global` + `@borderlesscoding`.
 
@@ -171,6 +177,33 @@ FULL = p25 do grupo established    a partir daqui, típico de endereço estabele
 
 **O limiar é output do repositório, não input.**
 
+## c1) ⭐ RESULTADOS DA CALIBRAÇÃO (medidos em 15/08, n=30)
+
+```
+sinal        ZERO (p75 fresh)   FULL (p25 established)   separação    veredito
+age_days           2.84                531.89              187x       ✅ usar
+tx_count          53.75               1894.50               35x       ✅ usar
+diversity          5.75                  6.00              0.25x      ⚠️ não separa
+txs_24h           32.75                  7.00             INVERTIDO   ⚠️ não separa
+txs_7d            53.75                 41.25             INVERTIDO   ⚠️ não separa
+```
+
+**Por que o ritmo inverteu:** wallet fresca de bot dispara 150 transações num dia; endereço estabelecido fica dormente. Ritmo mede **atividade atual, não track record**. Os dados confirmaram, sem saber, o desenho que o Marko já tinha proposto: cadência entra como `cadence_penalty` multiplicativa, não como eixo positivo normalizado.
+
+**Por que a diversidade não separou:** o estrato established contém bots antigos de 1 contraparte (0x016a…, 0xAdC5…), então o p25 caiu para 6 e encostou no p75 do fresh.
+
+**Decisão deliberada: o estrato NÃO foi recomposto para melhorar esses números.** Escolher os established pela diversidade garantiria que a diversidade separasse, o que é calibrar no próprio alvo. Os sinais que não separam ficam declarados como tal.
+
+**Frame de amostragem, para a pergunta "de onde vieram os 30":** EOAs que enviaram USDC na Base nos blocos 50021246 a 50021255, que é a população mais próxima de agentes pagando via x402. Foram medidos 74 candidatos e selecionados por regras declaradas no cabeçalho do `addresses.csv` (as 7 mais novas para fresh, 7 a 90 dias para mid, as 10 mais antigas para established), nenhuma baseada no sinal em calibração. Fora do frame: 3 endereços gerados localmente, o endereço da demo e o vitalik.eth.
+
+## ⭐ Limitação descoberta e a declarar no pitch: relayer e account abstraction
+
+Dos 74 endereços amostrados, **13 têm zero transações mas até 73.598 token transfers**. São carteiras que pagam via relayer ou account abstraction: o `from` do token transfer é elas, mas quem envia a transação é outro endereço.
+
+Pelos sinais da v0.1, um agente desses é **indistinguível de uma carteira criada agora**.
+
+Declare isso antes que um juiz pergunte. E é o argumento mais direto para o funding provenance: o primeiro inbound existe mesmo quando a contagem de transações não existe.
+
 ## c2) A função de reputação: média geométrica ponderada
 
 > Fonte: Marko Brkic, Q&A Week 12 (15/08). Substitui a soma linear de 25 pontos por sinal que estava aqui antes.
@@ -188,19 +221,27 @@ confidence = evidence_mass / (evidence_mass + 25)
 
 Por que média geométrica e não soma: **um eixo fraco não pode ser compensado por um eixo forte.** Com soma, um agente com funding suspeito compensa com volume alto. Com produto, não compensa. É a forma certa para reputação.
 
-**Pesos, pelo princípio "pese pelo custo de forjar":**
+**Pesos, pelo princípio "pese pelo custo de forjar", já ajustados pelo que a calibração mediu:**
 
 ```
-sinal          peso    na v0.1?   nota
-funding        0.22    se der     primeiro inbound: CEX vs mixer. Mais difícil de forjar.
-contracts      0.18    roadmap    contrapartes são protocolos rotulados? Caro de forjar.
-ratings        0.20    roadmap    camada humana, só quem usou pode votar.
-familiarity    0.20    roadmap    contata vendedores x402 com frequência.
-maturity       0.10    ✅ tem     idade da conta. Forjável esperando.
-volume         0.10    ✅ tem     contagem. Barato de forjar com self-sends.
+sinal          peso v0.1   estado          nota
+funding          0.40      ⭐ D3           primeiro inbound: CEX vs mixer.
+                                           Mais difícil de forjar. Sobe de prioridade
+                                           porque diversidade e ritmo caíram.
+maturity         0.35      ✅ tem          idade. Separa 187x. Forjável esperando.
+volume           0.25      ✅ tem          contagem. Separa 35x. Barato de forjar
+                                           com self-sends, por isso o menor peso.
+---
+contracts         —        roadmap         contrapartes são protocolos rotulados?
+ratings           —        roadmap         camada humana, só quem usou pode votar.
+familiarity       —        roadmap         contata vendedores x402 com frequência.
 ```
 
-Na v0.1, os sinais ausentes (ratings, familiarity, contracts se não der) **saem da fórmula e os pesos restantes são renormalizados para somar 1.** Diversidade e ritmo, que você já tem, entram como sub-componentes de contracts/familiarity com peso pequeno enquanto os sinais completos não existem. Declare no README qual subconjunto está ativo.
+**Diversidade e ritmo saem da média geométrica.** A calibração mostrou que não separam os grupos (ver c1). Ritmo vira `cadence_penalty` multiplicativa, que é onde ele sempre pertenceu. Diversidade continua sendo **coletada e exibida** no atestado como evidência, mas com peso zero, e isso é declarado. É honesto e é um bom momento de pitch: *"medi e dois sinais não separavam, então não entram na conta."*
+
+**Com só dois eixos (maturity e volume), a média geométrica fica frágil.** Por isso o funding provenance **sobe do D5 para o D3**: sem ele a v0.1 tem eixos demais de menos. Se o funding não sair no D3, os pesos renormalizam para maturity 0.58 / volume 0.42 e o projeto continua de pé, mas mais fraco.
+
+Declare no README qual subconjunto está ativo.
 
 `evidence_mass` na v0.1 = número de transações observadas na janela (0 a 150). É simples, é honesto, e faz a wallet zerada cair naturalmente para score ~0.
 
@@ -342,8 +383,8 @@ Built solo in 14 days for the Borderless Web3 hackathon (Aug 2026).
 
 # 6 · Riscos de execução
 
-**1. Blockscout instável ou com rate limit no dia da demo.**
-Como a demo é **ao vivo às 10h do dia 22**, essa é a ameaça número um do projeto. O cache em arquivo que dobra como fixtures e a flag `--offline` deixam de ser opcionais: são a rede de segurança. Gravar um vídeo de backup no D8 para tocar caso tudo falhe ao vivo.
+**1. Blockscout instável ou com rate limit no dia da demo. ⚠️ JÁ ACONTECEU.**
+Em 15/08, por volta das 22h20, a Blockscout Pro devolveu 500 em **23 de 30 endereços** durante a coleta do D2, mesmo com os 3 retries. Sete dias antes da demo. O `--offline` do D7 não é rede de segurança teórica: é requisito, e não é cortável em hipótese nenhuma. Gravar um vídeo de backup no D8 para tocar caso tudo falhe ao vivo.
 
 **2. Integração x402 real emperra no D5.**
 Pacotes confirmados no npm: `x402-express@1.2.0` e `x402-fetch@1.2.0`, última publicação em 16/04/2026. Ainda assim, timebox de 1h no quickstart. O fallback é indolor por construção: o `kyaGate` roda **antes** do middleware de pagamento e só decodifica o header `X-PAYMENT` (base64 JSON, campo `from`), então um cliente sintético que manda o header exercita exatamente o mesmo código do cliente real.
