@@ -1,5 +1,5 @@
 /**
- * npx tsx demo/agents.ts [--real]
+ * npx tsx demo/agents.ts [--real] [--offline]
  *
  * The buyer side of the demo: two agents, one paid endpoint, same request.
  *
@@ -26,6 +26,11 @@
  *          (score above 84) holding USDC on Base Sepolia. Without it, only the
  *          fresh agent runs.
  *
+ * --offline  pairs with `paid-endpoint.ts --offline`: the gate replays committed
+ *            fixtures, so the fresh agent must be an address that HAS one. It
+ *            becomes 0xeB94Dd…6B97 (generated on D2, key discarded, zero
+ *            transactions by construction), sent as a synthetic header.
+ *
  * Env: DEMO_URL (http://localhost:4021/chem), DEMO_ESTABLISHED_PRIVATE_KEY,
  * DEMO_FRESH_PRIVATE_KEY (generated when absent).
  */
@@ -42,10 +47,13 @@ import { PAYMENT_HEADER, VERDICT_HEADER } from '../src/gate.js'
 loadDotEnv()
 
 const REAL = process.argv.includes('--real')
+const OFFLINE = process.argv.includes('--offline')
 const NETWORK = 'base-sepolia'
 
 /** From the calibration set: exchange-funded, sustained use since 2024. TRUSTED, score 857. */
 const ESTABLISHED_ADDRESS: Address = '0x2CfF890f0378a11913B6129B2E97417a2c302680'
+/** From the calibration set: generated locally, key discarded, zero history. Has a fixture. */
+const FRESH_FIXTURE_ADDRESS: Address = '0xeB94Dd34439e017EBa695678265e44Ea12E16B97'
 
 type Agent = {
   name: string
@@ -87,7 +95,11 @@ function agents(): Agent[] {
   } else {
     console.log('  established  skipped: --real needs DEMO_ESTABLISHED_PRIVATE_KEY (a wallet with history, holding Sepolia USDC)')
   }
-  list.push({ name: 'fresh', address: privateKeyToAccount(freshKey).address, key: freshKey, expect: 403 })
+  if (OFFLINE) {
+    list.push({ name: 'fresh', address: FRESH_FIXTURE_ADDRESS, key: undefined, expect: 403 })
+  } else {
+    list.push({ name: 'fresh', address: privateKeyToAccount(freshKey).address, key: freshKey, expect: 403 })
+  }
   return list
 }
 
@@ -207,7 +219,7 @@ function report(agent: Agent, outcome: Outcome): boolean {
 async function main(): Promise<void> {
   const url = endpointUrl()
   console.log('')
-  console.log(`KYA demo · two agents, one paid endpoint   (${REAL ? 'REAL settlement' : 'simulated settlement'})`)
+  console.log(`KYA demo · two agents, one paid endpoint   (${REAL ? 'REAL settlement' : 'simulated settlement'}${OFFLINE ? ', offline fixtures' : ''})`)
   console.log(`  endpoint  ${url}`)
   console.log('')
 
@@ -215,7 +227,9 @@ async function main(): Promise<void> {
   let allOk = true
   for (const agent of list) {
     const how = agent.key !== undefined ? 'x402-fetch client' : 'synthetic header, no key'
-    const origin = agent.name === 'fresh' ? 'generated now, zero history' : 'calibration set, 648 days, exchange-funded'
+    const origin = agent.name === 'fresh'
+      ? OFFLINE ? 'fixture: generated on D2, zero history' : 'generated now, zero history'
+      : 'calibration set, 648 days, exchange-funded'
     console.log(`  ${agent.name.padEnd(12)} ${agent.address}   ${origin}   [${how}]`)
     try {
       const outcome = await run(agent, url)
