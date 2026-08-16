@@ -32,6 +32,9 @@ export const WINDOW_PAGES = 3
 export const WINDOW_PAGE_SIZE = 50
 export const WINDOW_MAX_TXS = WINDOW_PAGES * WINDOW_PAGE_SIZE
 
+/** How far into the oldest history to look for the first INBOUND transfer. */
+export const EARLIEST_LIMIT = 10
+
 const MAX_RETRIES = 3
 const BASE_BACKOFF_MS = 500
 const MAX_BACKOFF_MS = 8_000
@@ -78,10 +81,20 @@ export type WindowTx = {
   to: string | null
 }
 
-type EtherscanTxListResponse = {
+/** ERC-20 transfer as returned by the Etherscan-compatible tokentx action. */
+export type EtherscanTokenTx = {
+  hash: string
+  timeStamp: string
+  from: string
+  to: string
+  tokenSymbol?: string
+  contractAddress?: string
+}
+
+type EtherscanListResponse<T> = {
   status: string
   message: string
-  result: EtherscanTx[] | string
+  result: T[] | string
 }
 
 /** /counters returns every value as a STRING. Converted here, once. */
@@ -102,7 +115,10 @@ export type AddressCounters = {
 /** Everything one verify reads from the chain, in one shot. */
 export type AddressHistory = {
   address: string
-  firstTransaction: EtherscanTx | null
+  /** Oldest transactions first. [0] dates the account. */
+  earliest: EtherscanTx[]
+  /** Oldest token transfers first, for wallets that never sent a transaction. */
+  earliestTokenTransfers: EtherscanTokenTx[]
   window: WindowTx[]
   counters: AddressCounters
   fetchedAt: string
@@ -227,27 +243,48 @@ function toNumber(value: string | null | undefined): number | null {
   return Number.isFinite(parsed) ? parsed : null
 }
 
-/** Call 1: oldest transaction of the address. Null when it has none. */
-export async function fetchFirstTransaction(address: string): Promise<EtherscanTx | null> {
-  const body = await request<EtherscanTxListResponse>(
-    etherscanUrl({
-      module: 'account',
-      action: 'txlist',
-      address,
-      sort: 'asc',
-      page: 1,
-      offset: 1,
-    }),
+function unwrapRows<T>(body: EtherscanListResponse<T>, action: string, address: string): T[] {
+  if (Array.isArray(body.result)) return body.result
+  // "No transactions found" is a legitimate empty history, not a failure.
+  if (/no (transactions|token transfers) found/i.test(body.message)) return []
+  throw new BlockscoutError(`${action} rejected ${address}: ${body.message || body.result}`)
+}
+
+/**
+ * Call 1: the oldest transactions of the address, oldest first.
+ *
+ * result[0] dates the account (AGE). The rest are there for funding provenance:
+ * the first transaction of an EOA is usually inbound and names whoever funded
+ * it, but not always, so a few rows are read to find the first INBOUND one.
+ */
+export async function fetchEarliestTransactions(
+  address: string,
+  limit = EARLIEST_LIMIT,
+): Promise<EtherscanTx[]> {
+  const body = await request<EtherscanListResponse<EtherscanTx>>(
+    etherscanUrl({ module: 'account', action: 'txlist', address, sort: 'asc', page: 1, offset: limit }),
     'txlist',
   )
+  return unwrapRows(body, 'txlist', address)
+}
 
-  if (!Array.isArray(body.result)) {
-    // "No transactions found" is a legitimate empty history, not a failure.
-    if (/no transactions found/i.test(body.message)) return null
-    throw new BlockscoutError(`txlist rejected ${address}: ${body.message || body.result}`)
-  }
-
-  return body.result[0] ?? null
+/**
+ * Call 4: the oldest token transfers, oldest first.
+ *
+ * A wallet that pays through a relayer or a smart account can have ZERO
+ * transactions and still have been funded: 13 of the 74 addresses sampled on D2
+ * looked like that, one of them with 25k token transfers. The first inbound
+ * transfer exists even when the transaction count does not.
+ */
+export async function fetchEarliestTokenTransfers(
+  address: string,
+  limit = EARLIEST_LIMIT,
+): Promise<EtherscanTokenTx[]> {
+  const body = await request<EtherscanListResponse<EtherscanTokenTx>>(
+    etherscanUrl({ module: 'account', action: 'tokentx', address, sort: 'asc', page: 1, offset: limit }),
+    'tokentx',
+  )
+  return unwrapRows(body, 'tokentx', address)
 }
 
 function toWindowTx(tx: EtherscanTx): WindowTx {
@@ -277,7 +314,7 @@ export async function fetchTransactionWindow(
 ): Promise<WindowTx[]> {
   const pages = await Promise.all(
     Array.from({ length: maxPages }, (_unused, index) =>
-      request<EtherscanTxListResponse>(
+      request<EtherscanListResponse<EtherscanTx>>(
         etherscanUrl({
           module: 'account',
           action: 'txlist',
@@ -323,8 +360,9 @@ export async function fetchCounters(address: string): Promise<AddressCounters> {
  * signals.ts downgrades to a window lower bound if it is still inconsistent.
  */
 export async function fetchAddressHistory(address: string): Promise<AddressHistory> {
-  const [firstTransaction, window, firstCounters] = await Promise.all([
-    fetchFirstTransaction(address),
+  const [earliest, earliestTokenTransfers, window, firstCounters] = await Promise.all([
+    fetchEarliestTransactions(address),
+    fetchEarliestTokenTransfers(address),
     fetchTransactionWindow(address),
     fetchCounters(address),
   ])
@@ -335,7 +373,8 @@ export async function fetchAddressHistory(address: string): Promise<AddressHisto
 
   return {
     address,
-    firstTransaction,
+    earliest,
+    earliestTokenTransfers,
     window,
     counters,
     fetchedAt: new Date().toISOString(),
