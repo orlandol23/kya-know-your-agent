@@ -5,6 +5,7 @@
   "description": "Know Your Agent - on-chain reputation for AI agents that pay through x402",
   "type": "module",
   "scripts": {
+    "start": "tsx src/server.ts",
     "collect": "tsx scripts/collect.ts",
     "typecheck": "tsc --noEmit"
   },
