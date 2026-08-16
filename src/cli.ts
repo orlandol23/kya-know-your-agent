@@ -1,14 +1,17 @@
 /**
  * npx tsx src/cli.ts 0x...
+ * npx tsx src/cli.ts --offline 0x...     replay the committed fixture, no network
  *
  * The whole pipeline in one screen: signals, funding, score, verdict, and why.
  */
 
 import { BlockscoutError, WINDOW_MAX_TXS, chainId } from './blockscout.js'
 import { ConfigError, SCORE, VERDICT, WEIGHTS, loadDotEnv } from './config.js'
+import { isOffline, setOffline } from './history.js'
 import { InvalidAddressError, requireVerifyConfig, verify, type Verification } from './verify.js'
 
 loadDotEnv()
+if (process.argv.includes('--offline')) setOffline(true)
 
 const LABEL_WIDTH = 15
 
@@ -22,11 +25,17 @@ const BADGE: Record<string, string> = {
   suspicious: 'SUSPICIOUS',
 }
 
-function print({ signals, funding, breakdown, verdict, attestation }: Verification): void {
+function print({ signals, funding, breakdown, verdict, attestation, source, capturedAt }: Verification): void {
   const badge = verdict.gated ? `${BADGE[verdict.verdict]} · GATED` : BADGE[verdict.verdict]
+  const origin =
+    source === 'live'
+      ? `Blockscout Pro · chain ${chainId()}`
+      : source === 'cache'
+        ? `cache (read ${capturedAt}) · chain ${chainId()}`
+        : `OFFLINE · fixture captured ${capturedAt} · chain ${chainId()}`
 
   console.log('')
-  console.log(`KYA · Blockscout Pro · chain ${chainId()}`)
+  console.log(`KYA · ${origin}`)
   console.log(signals.address)
   console.log('')
   console.log(`  ${badge}   score ${breakdown.score} / ${SCORE.scale}`)
@@ -114,10 +123,10 @@ function print({ signals, funding, breakdown, verdict, attestation }: Verificati
 }
 
 async function main(): Promise<void> {
-  const input = process.argv[2]
+  const input = process.argv.slice(2).find((arg) => !arg.startsWith('--'))
 
   if (input === undefined) {
-    console.error('usage: npx tsx src/cli.ts 0xAddress')
+    console.error('usage: npx tsx src/cli.ts [--offline] 0xAddress')
     process.exitCode = 1
     return
   }
@@ -130,7 +139,7 @@ async function main(): Promise<void> {
       console.error(error.message)
     } else {
       const detail = error instanceof BlockscoutError ? error.message : String(error)
-      console.error(`verify failed for ${input}: ${detail}`)
+      console.error(`verify failed for ${input}${isOffline() ? ' (offline)' : ''}: ${detail}`)
     }
     process.exitCode = 1
   }

@@ -245,6 +245,31 @@ function unwrapRows<T>(body: EtherscanListResponse<T>, action: string, address: 
 }
 
 /**
+ * Keep only the fields the pipeline reads. The Etherscan-compatible rows also
+ * carry the full calldata (`input`), which for an airdropped spam token can be
+ * 80 KB per row; that is what made one fixture weigh 1.1 MB. Pruned here, once,
+ * so the cache and the committed fixtures stay small and the types stay honest.
+ */
+function pickTx(row: EtherscanTx): EtherscanTx {
+  const tx: EtherscanTx = {
+    hash: row.hash,
+    timeStamp: row.timeStamp,
+    blockNumber: row.blockNumber,
+    from: row.from,
+    to: row.to,
+  }
+  if (row.contractAddress) tx.contractAddress = row.contractAddress
+  return tx
+}
+
+function pickTokenTx(row: EtherscanTokenTx): EtherscanTokenTx {
+  const tx: EtherscanTokenTx = { hash: row.hash, timeStamp: row.timeStamp, from: row.from, to: row.to }
+  if (row.tokenSymbol) tx.tokenSymbol = row.tokenSymbol
+  if (row.contractAddress) tx.contractAddress = row.contractAddress
+  return tx
+}
+
+/**
  * Call 1: the oldest transactions of the address, oldest first.
  *
  * result[0] dates the account (AGE). The rest are there for funding provenance:
@@ -259,7 +284,7 @@ export async function fetchEarliestTransactions(
     etherscanUrl({ module: 'account', action: 'txlist', address, sort: 'asc', page: 1, offset: limit }),
     'txlist',
   )
-  return unwrapRows(body, 'txlist', address)
+  return unwrapRows(body, 'txlist', address).map(pickTx)
 }
 
 /**
@@ -278,7 +303,7 @@ export async function fetchEarliestTokenTransfers(
     etherscanUrl({ module: 'account', action: 'tokentx', address, sort: 'asc', page: 1, offset: limit }),
     'tokentx',
   )
-  return unwrapRows(body, 'tokentx', address)
+  return unwrapRows(body, 'tokentx', address).map(pickTokenTx)
 }
 
 function toWindowTx(tx: EtherscanTx): WindowTx {

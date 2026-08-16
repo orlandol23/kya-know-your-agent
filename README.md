@@ -115,6 +115,7 @@ fails closed with 503, still before settlement.
     cp .env.example .env    # Blockscout Pro key + throwaway attester key
     npm i
     npx tsx src/cli.ts 0xYourAddress                     # verdict, score, why, signature
+    npx tsx src/cli.ts --offline 0x2CfF890f0378a11913B6129B2E97417a2c302680   # no network, no key (see Offline mode)
     npx tsx src/server.ts                                # GET /verify + the demo UI at /
     curl "localhost:3000/verify?address=0xYourAddress"
     open http://localhost:3000/                          # two agents side by side
@@ -141,6 +142,38 @@ wallet can still sign); the established agent sends a synthetic `X-PAYMENT`
 header because its key is not ours. Add `--real` to both commands to settle
 through `x402.org/facilitator`; then set `DEMO_ESTABLISHED_PRIVATE_KEY` to a
 wallet with history holding Sepolia USDC, and `DEMO_PAY_TO` to your address.
+
+## Offline mode: fixtures are dated captures of live addresses
+
+Blockscout answered 500 for 23 of 30 addresses seven days before the pitch, so
+the demo does not depend on it being up:
+
+    npx tsx scripts/capture.ts                 # reads Blockscout NOW, writes data/fixtures/<address>.json
+    npx tsx src/cli.ts --offline 0x2CfF...     # replays the fixture, no network, no Blockscout key
+    npx tsx src/server.ts --offline            # every request replays data/fixtures/
+    npx tsx demo/paid-endpoint.ts --offline    # the gate replays too (pair with demo/agents.ts --offline)
+
+`data/fixtures/` holds four committed captures: the three demo cases (established
+`0x2CfF…2680`, fresh exchange-funded `0xBEab…2787`, OFAC-listed `0x098b…2f96`)
+and one address with zero transactions (`0xeB94…6B97`, generated locally, key
+discarded). **They are not synthetic cases.** Each file is what Blockscout
+returned for a live address at the instant in its `captured_at`; the addresses
+have kept living since, so a live read can differ. An attestation replayed from
+a fixture has the same format and signature as a live one and carries the
+capture instant as `evidence.fetched_at`, next to a fresh `issued_at`, so any
+consumer can tell a replay from a fresh read. Responses also say
+`X-KYA-Source: live | cache | fixture`.
+
+The same file format is the live mode's 10-minute cache (`data/cache/`,
+gitignored): a fixture is a cache entry that was kept. A live server also
+honours `?offline=1` per request, and the UI has an *offline* toggle, so the
+demo flips to fixtures without a restart. In offline mode an address without a
+fixture is a 404 (a 503 at the gate), never a silent fallback to stale data.
+
+Failure modes checked: zero-transaction address (suspicious, score 0), invalid
+address (400), Blockscout answering 500 (502 after 3 retries with backoff, ~4 s),
+Blockscout hanging (each call times out at 15 s; 4 attempts, so ~65 s before
+the 502).
 
 ## Deliberately not in v0.1
 

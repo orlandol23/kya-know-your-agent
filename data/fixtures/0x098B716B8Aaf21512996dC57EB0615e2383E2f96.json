@@ -1,0 +1,118 @@
+{
+  "kya_history": "v0.1",
+  "address": "0x098B716B8Aaf21512996dC57EB0615e2383E2f96",
+  "captured_at": "2026-08-16T13:37:58.142Z",
+  "chain_id": 8453,
+  "api_url": "https://api.blockscout.com",
+  "note": "Dated capture of a live address. Its on-chain history has moved on since; the attestation built from this file carries captured_at as evidence.fetched_at.",
+  "history": {
+    "address": "0x098B716B8Aaf21512996dC57EB0615e2383E2f96",
+    "earliest": [
+      {
+        "hash": "0xf8d51fa331332cf9c687279fa2f742aa6149b78a5e33ef0969f8610681764e10",
+        "timeStamp": "1721633997",
+        "blockNumber": "17422325",
+        "from": "0xa776dd24eb8529c88cbe6e0db81a74915398ad80",
+        "to": "0x098b716b8aaf21512996dc57eb0615e2383e2f96"
+      }
+    ],
+    "earliestTokenTransfers": [
+      {
+        "hash": "0xf2c506ff7f9f40b5c37d6d33d4c9f643102246d279217c178502a0b4ada23a16",
+        "timeStamp": "1712082605",
+        "from": "0xd72fd3d543016dc996436b0ae3c01c862d41fc3b",
+        "to": "0x098b716b8aaf21512996dc57eb0615e2383e2f96",
+        "tokenSymbol": "uoh",
+        "contractAddress": "0x98b81a0e3e71cc16ae912cbccff5e6555d5919e7"
+      },
+      {
+        "hash": "0x4f980ed2a059eb8b755d5716c5402c315e7e6710afb21fad4ca87a93a3e51d01",
+        "timeStamp": "1712290817",
+        "from": "0x1928447d181522910dd1fa87361d0cabe153b669",
+        "to": "0x098b716b8aaf21512996dc57eb0615e2383e2f96",
+        "tokenSymbol": "BASED",
+        "contractAddress": "0x07d15798a67253d76cea61f0ea6f57aedc59dffb"
+      },
+      {
+        "hash": "0x449c985d6eb913cf8c8d9a6bb26285cdd7638bd90d594616a421aa0d7c01da81",
+        "timeStamp": "1712627525",
+        "from": "0xd152f549545093347a162dce210e7293f1452150",
+        "to": "0x098b716b8aaf21512996dc57eb0615e2383e2f96",
+        "tokenSymbol": "WIGGLE",
+        "contractAddress": "0x5820b524861deac6b1633009800479ba111d62dc"
+      },
+      {
+        "hash": "0xf976fd16004fa95f4c21d888910a74f6abd9325709ee20953d86e31f524af893",
+        "timeStamp": "1712935939",
+        "from": "0xdf8818c289e863b614ed04938ba41220c7fa74f8",
+        "to": "0x098b716b8aaf21512996dc57eb0615e2383e2f96",
+        "tokenSymbol": "▄︻デ══━一",
+        "contractAddress": "0x5e9fe073df7ce50e91eb9cbb010b99ef6035a97d"
+      },
+      {
+        "hash": "0x05ce558cec2c4247b683a20fa38c56da11397bb5d0afdeae2364fbdbd7c5372b",
+        "timeStamp": "1715437127",
+        "from": "0xd152f549545093347a162dce210e7293f1452150",
+        "to": "0x098b716b8aaf21512996dc57eb0615e2383e2f96",
+        "tokenSymbol": "SHAKA",
+        "contractAddress": "0x478e03d45716dda94f6dbc15a633b0d90c237e2f"
+      },
+      {
+        "hash": "0xceba74f6a41c8d3d29592036dc2c82839fd0c6d48a4dd7d6781911e4af64e8ac",
+        "timeStamp": "1716256239",
+        "from": "0x4d3006a268d9af4161cee15315b1f0726e985672",
+        "to": "0x098b716b8aaf21512996dc57eb0615e2383e2f96",
+        "tokenSymbol": "RUSH",
+        "contractAddress": "0x8ef26fe907e3155afb8c6a20b90ed09babd1ee9f"
+      },
+      {
+        "hash": "0x36084fc05c49c77dbf3c4aebe32c69ef9d5afe732a23328bb448d1c829b96b9f",
+        "timeStamp": "1716596223",
+        "from": "0xb56d0839998fd79efcd15c27cf966250aa58d6d3",
+        "to": "0x098b716b8aaf21512996dc57eb0615e2383e2f96",
+        "tokenSymbol": "Claim on: basedusa.live/?claim",
+        "contractAddress": "0xc6fb2d95f751bcf22ec972f54d5a9d81b4a49142"
+      },
+      {
+        "hash": "0xce504b148752ba31fac2536e7e660b336b3e4bc5cbfa432d03219dea1e3d032b",
+        "timeStamp": "1716700065",
+        "from": "0x09350f89e2d7b6e96ba730783c2d76137b045fef",
+        "to": "0x098b716b8aaf21512996dc57eb0615e2383e2f96",
+        "tokenSymbol": "USA",
+        "contractAddress": "0xb56d0839998fd79efcd15c27cf966250aa58d6d3"
+      },
+      {
+        "hash": "0x19cdda6e86cf62420d9d6ae5ce50d8b131d2d8cbca1992298960e83dccaa5bfe",
+        "timeStamp": "1717204319",
+        "from": "0x8ad25b0083c9879942a64f00f20a70d3278f6187",
+        "to": "0x098b716b8aaf21512996dc57eb0615e2383e2f96",
+        "tokenSymbol": "Claim on: rewards-brett.com",
+        "contractAddress": "0xf0adb186f0865c229966d20ad97ad4e6e2570ffa"
+      },
+      {
+        "hash": "0x8224cca7d38406c0087d46cc227ee425ec5f25f2e040919c6221d57fc4b32969",
+        "timeStamp": "1718430547",
+        "from": "0xf3078563c74205f1685c65fad466f4dec7c609e7",
+        "to": "0x098b716b8aaf21512996dc57eb0615e2383e2f96",
+        "tokenSymbol": "ICECREAM",
+        "contractAddress": "0x297ffe5933e02a975f413e62e9f6d903a43858b2"
+      }
+    ],
+    "window": [
+      {
+        "hash": "0xf8d51fa331332cf9c687279fa2f742aa6149b78a5e33ef0969f8610681764e10",
+        "timestampMs": 1721633997000,
+        "from": "0xa776dd24eb8529c88cbe6e0db81a74915398ad80",
+        "to": "0x098b716b8aaf21512996dc57eb0615e2383e2f96"
+      }
+    ],
+    "counters": {
+      "transactionsCount": 1,
+      "tokenTransfersCount": 57,
+      "gasUsageCount": 0,
+      "validationsCount": 0
+    },
+    "fetchedAt": "2026-08-16T13:37:58.142Z",
+    "blockscoutUrl": "https://base.blockscout.com/address/0x098B716B8Aaf21512996dC57EB0615e2383E2f96"
+  }
+}
