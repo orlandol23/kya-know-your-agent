@@ -10,16 +10,16 @@ import { getAddress, isAddress } from 'viem'
 
 import {
   BlockscoutError,
-  ConfigError,
   chainId,
   fetchAddressHistory,
   requireApiKey,
 } from '../src/blockscout.js'
+import { ConfigError, loadDotEnv } from '../src/config.js'
 import { parseCsv, toCsv, type CsvRow } from '../src/csv.js'
 import { deriveFunding, type FundingProvenance } from '../src/funding.js'
 import { deriveSignals, type Signals } from '../src/signals.js'
 
-if (existsSync('.env')) process.loadEnvFile('.env')
+loadDotEnv()
 
 const ADDRESSES_CSV = 'data/addresses.csv'
 const SIGNALS_CSV = 'data/signals.csv'

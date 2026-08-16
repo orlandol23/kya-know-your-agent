@@ -20,6 +20,8 @@
  * <= 150 transactions, and that is declared in the output.
  */
 
+import { ConfigError } from './config.js'
+
 /** Blockscout Pro. Every signal is read from here. */
 const DEFAULT_API_URL = 'https://api.blockscout.com'
 /** Public explorer. Evidence links only, never an API call. */
@@ -49,14 +51,6 @@ export class BlockscoutError extends Error {
     super(message)
     this.name = 'BlockscoutError'
     this.status = status
-  }
-}
-
-/** Missing or unusable configuration. Distinct from a failed request. */
-export class ConfigError extends Error {
-  constructor(message: string) {
-    super(message)
-    this.name = 'ConfigError'
   }
 }
 

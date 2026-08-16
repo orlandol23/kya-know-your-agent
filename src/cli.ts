@@ -4,24 +4,11 @@
  * The whole pipeline in one screen: signals, funding, score, verdict, and why.
  */
 
-import { existsSync } from 'node:fs'
-import { getAddress, isAddress } from 'viem'
+import { BlockscoutError, WINDOW_MAX_TXS, chainId } from './blockscout.js'
+import { ConfigError, SCORE, VERDICT, WEIGHTS, loadDotEnv } from './config.js'
+import { InvalidAddressError, requireVerifyConfig, verify, type Verification } from './verify.js'
 
-import {
-  BlockscoutError,
-  ConfigError,
-  WINDOW_MAX_TXS,
-  chainId,
-  fetchAddressHistory,
-  requireApiKey,
-} from './blockscout.js'
-import { SCORE, VERDICT, WEIGHTS } from './config.js'
-import { deriveFunding, type FundingProvenance } from './funding.js'
-import { scoreAddress, type ScoreBreakdown } from './score.js'
-import { deriveSignals, type Signals } from './signals.js'
-import { decide, type Verdict } from './verdict.js'
-
-if (existsSync('.env')) process.loadEnvFile('.env')
+loadDotEnv()
 
 const LABEL_WIDTH = 15
 
@@ -35,12 +22,7 @@ const BADGE: Record<string, string> = {
   suspicious: 'SUSPICIOUS',
 }
 
-function print(
-  signals: Signals,
-  funding: FundingProvenance,
-  breakdown: ScoreBreakdown,
-  verdict: Verdict,
-): void {
+function print({ signals, funding, breakdown, verdict, attestation }: Verification): void {
   const badge = verdict.gated ? `${BADGE[verdict.verdict]} · GATED` : BADGE[verdict.verdict]
 
   console.log('')
@@ -117,6 +99,12 @@ function print(
   console.log(line('    link', signals.blockscoutUrl))
   console.log(line('    at', signals.fetchedAt))
   console.log('')
+
+  console.log('  attestation')
+  console.log(line('    attester', attestation.attester))
+  console.log(line('    issued', attestation.issued_at))
+  console.log(line('    signature', attestation.signature))
+  console.log('')
   console.log(
     `  cutoffs: suspicious <= ${VERDICT.suspiciousMax} < unknown < ${VERDICT.trustedMin} <= trusted` +
       `   ·   weights funding ${WEIGHTS.funding} / maturity ${WEIGHTS.maturity} / volume ${WEIGHTS.volume}`,
@@ -134,27 +122,15 @@ async function main(): Promise<void> {
     return
   }
 
-  if (!isAddress(input, { strict: false })) {
-    console.error(`not a valid address: ${input}`)
-    process.exitCode = 1
-    return
-  }
-
-  const address = getAddress(input)
-
   try {
-    requireApiKey()
-    const history = await fetchAddressHistory(address)
-    const signals = deriveSignals(history)
-    const funding = deriveFunding(history)
-    const breakdown = scoreAddress(signals, funding)
-    print(signals, funding, breakdown, decide(breakdown))
+    requireVerifyConfig()
+    print(await verify(input))
   } catch (error) {
-    if (error instanceof ConfigError) {
+    if (error instanceof ConfigError || error instanceof InvalidAddressError) {
       console.error(error.message)
     } else {
       const detail = error instanceof BlockscoutError ? error.message : String(error)
-      console.error(`verify failed for ${address}: ${detail}`)
+      console.error(`verify failed for ${input}: ${detail}`)
     }
     process.exitCode = 1
   }

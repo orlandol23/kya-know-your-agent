@@ -13,7 +13,22 @@
  * Saying which is which is the whole point of the calibration story.
  */
 
+import { existsSync } from 'node:fs'
+
 import type { FundingClass } from './funding.js'
+
+/** Missing or unusable configuration. Distinct from a failed request. */
+export class ConfigError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'ConfigError'
+  }
+}
+
+/** Entry points call this once. Library modules read process.env and never load. */
+export function loadDotEnv(path = '.env'): void {
+  if (existsSync(path)) process.loadEnvFile(path)
+}
 
 /*
  * ── MEASURED, 2026-08-16, n=30 (fresh 10, mid 10, established 10) ────────────
