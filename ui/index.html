@@ -29,6 +29,9 @@
     --suspicious-tint: #ffd7d5;
     --gated: #1b1f24;
     --gated-ink: #ff7b72;
+    --fixture: #9a6700;
+    --fixture-ink: #7d4e00;
+    --fixture-tint: #fff1c2;
     font-size: 20px;
   }
   * { box-sizing: border-box; }
@@ -43,6 +46,12 @@
   header h1 span { color: var(--muted); font-weight: 500; }
   header p { margin: 0; font-size: 1.15rem; color: var(--muted); }
   header .rule { margin-left: auto; font-size: 1rem; color: var(--muted); font-family: var(--mono); }
+  header .offline { display: flex; align-items: center; gap: 8px; font-size: 1rem; color: var(--muted); cursor: pointer; user-select: none; }
+  header .offline input { width: 22px; height: 22px; accent-color: var(--fixture); cursor: pointer; }
+  header .offline.on { color: var(--fixture-ink); font-weight: 700; }
+  .source { display: inline-block; margin-top: 12px; font-size: 1rem; font-weight: 700; padding: 6px 12px; border-radius: 8px; }
+  .source.fixture { background: var(--fixture-tint); color: var(--fixture-ink); border: 2px solid var(--fixture); }
+  .source.cache { background: var(--unknown-tint); color: var(--unknown-ink); }
 
   main { display: grid; grid-template-columns: repeat(auto-fit, minmax(560px, 1fr)); gap: 24px; align-items: start; }
 
@@ -139,6 +148,9 @@
   <h1>KYA <span>· Know Your Agent</span></h1>
   <p>On-chain reputation for AI agents that pay through x402. Reads the agent's Base history, answers before the payment settles.</p>
   <div class="rule" id="rule">suspicious ≤ 84 &lt; unknown &lt; 193 ≤ trusted</div>
+  <label class="offline" id="offline-toggle" title="Replay the committed, dated fixtures in data/fixtures/ instead of reading Blockscout. For when Blockscout is down mid-demo.">
+    <input type="checkbox" id="offline"> offline · replay dated fixtures
+  </label>
 </header>
 
 <main>
@@ -198,7 +210,7 @@
   const fmt = (n, d = 3) => Number(n).toFixed(d)
   const day = (iso) => iso ? iso.slice(0, 10) : '—'
 
-  function renderResult(container, { attestation: a, breakdown: b }) {
+  function renderResult(container, { attestation: a, breakdown: b, source, captured_at }) {
     const cls = verdictClass(a)
     const frag = document.createDocumentFragment()
     // The cutoffs come from the server (config.ts), not from this file.
@@ -212,6 +224,13 @@
     if (a.gated) row.append(el('span', { class: 'gate-note', text: 'compliance gate: not scored, blocked' }))
     frag.append(row)
     frag.append(el('div', { class: 'address', text: a.address }))
+    // Where the history came from. A fixture is a dated capture of a live
+    // address; the attestation carries that date as evidence.fetched_at.
+    if (source === 'fixture') {
+      frag.append(el('div', { class: 'source fixture', text: `OFFLINE · fixture captured ${(captured_at || a.evidence.fetched_at).replace('T', ' ').slice(0, 16)} UTC, replayed without network` }))
+    } else if (source === 'cache') {
+      frag.append(el('div', { class: 'source cache', text: `cached · read ${(captured_at || a.evidence.fetched_at).replace('T', ' ').slice(0, 16)} UTC` }))
+    }
 
     // 2. the reason
     frag.append(el('div', { class: `reason ${cls}`, text: a.summary }))
@@ -305,13 +324,16 @@
     button.disabled = true
 
     try {
-      const res = await fetch(`/verify?address=${encodeURIComponent(address)}&explain=1`, { signal: abort.signal, cache: 'no-store' })
+      const offline = document.getElementById('offline').checked ? '&offline=1' : ''
+      const res = await fetch(`/verify?address=${encodeURIComponent(address)}&explain=1${offline}`, { signal: abort.signal, cache: 'no-store' })
       let body = null
       try { body = await res.json() } catch { /* not JSON */ }
       if (res.status === 200 && body && body.attestation) {
         renderResult(container, body)
       } else if (res.status === 400) {
         renderError(container, 'Not a valid address', body?.error || `HTTP 400`)
+      } else if (res.status === 404 && body?.offline) {
+        renderError(container, 'Offline: no fixture for this address', `Fixtures exist for: ${(body.fixtures || []).map(short).join(', ') || 'none'}. Capture one with scripts/capture.ts, or switch offline off.`)
       } else if (res.status === 502) {
         renderError(container, 'Blockscout (upstream) unavailable', body?.error || 'HTTP 502. Try again in a moment.')
       } else {
@@ -354,6 +376,14 @@
     const preset = new URLSearchParams(location.search).get(key)
     if (preset) { input.value = preset; void verifyInto(panel, preset) }
   }
+
+  // Offline toggle first, so ?offline=1 applies to the ?a=&b= preloads below.
+  const toggle = document.getElementById('offline')
+  const toggleLabel = document.getElementById('offline-toggle')
+  toggle.checked = new URLSearchParams(location.search).get('offline') === '1'
+  const reflect = () => toggleLabel.classList.toggle('on', toggle.checked)
+  toggle.addEventListener('change', reflect)
+  reflect()
 
   document.querySelectorAll('.panel').forEach(wire)
 })()

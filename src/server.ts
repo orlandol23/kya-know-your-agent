@@ -1,19 +1,29 @@
 /**
- * npx tsx src/server.ts
+ * npx tsx src/server.ts [--offline]
  *
  *   GET /verify?address=0x...             -> signed attestation (see attest.ts for the shape)
- *   GET /verify?address=0x...&explain=1   -> { attestation, breakdown }: the same signed
- *                                            attestation plus the UNSIGNED score arithmetic
- *                                            (axes, weights, penalty, confidence, cutoffs)
- *                                            so a screen can draw why the score is what it is
+ *   GET /verify?address=0x...&explain=1   -> { attestation, breakdown, source, captured_at }:
+ *                                            the same signed attestation plus the UNSIGNED
+ *                                            score arithmetic (axes, weights, penalty,
+ *                                            confidence, cutoffs) so a screen can draw why
+ *                                            the score is what it is
+ *   GET /verify?address=0x...&offline=1   -> replay the committed fixture for this one request
  *   GET /                                 -> ui/index.html, the split-screen demo
  *
- * Stateless: every request reads Blockscout and signs a fresh, point-in-time
- * attestation. Consumers decide their own freshness policy from `issued_at`.
+ * Every response carries X-KYA-Source: live | cache | fixture.
+ *
+ * Stateless: every request reads Blockscout (or a fixture) and signs a fresh,
+ * point-in-time attestation. Consumers decide their own freshness policy from
+ * `issued_at`; `evidence.fetched_at` says when the chain was actually read.
+ *
+ * --offline (or KYA_OFFLINE=1) makes every request replay data/fixtures/ and
+ * never touches the network; no Blockscout key needed. Started live, a request
+ * can still ask for ?offline=1, which is how the UI flips to fixtures without a
+ * restart if Blockscout dies mid-demo.
  *
  * Status codes say what went wrong, so a caller can tell a bad address (400)
- * from Blockscout being unavailable (502) from a bug here (500). Only 200
- * carries an attestation.
+ * from a missing fixture (404) from Blockscout being unavailable (502) from a
+ * bug here (500). Only 200 carries an attestation.
  */
 
 import { fileURLToPath } from 'node:url'
@@ -23,10 +33,12 @@ import express, { type Request, type Response } from 'express'
 import { attesterAccount } from './attest.js'
 import { BlockscoutError, chainId } from './blockscout.js'
 import { ConfigError, SCORE, VERDICT, loadDotEnv } from './config.js'
+import { NoFixtureError, isOffline, listFixtures, setOffline } from './history.js'
 import type { ScoreBreakdown } from './score.js'
 import { InvalidAddressError, requireVerifyConfig, verify } from './verify.js'
 
 loadDotEnv()
+if (process.argv.includes('--offline')) setOffline(true)
 
 const DEFAULT_PORT = 3000
 
@@ -62,15 +74,28 @@ function explain(breakdown: ScoreBreakdown) {
 async function handleVerify(req: Request, res: Response): Promise<void> {
   const input = req.query.address
   const wantsExplain = req.query.explain === '1'
+  // Server-wide --offline wins; otherwise the request may opt in.
+  const offline = isOffline() || req.query.offline === '1'
 
   try {
-    const { attestation, breakdown } = await verify(input)
+    const { attestation, breakdown, source, capturedAt } = await verify(input, { offline })
     // Point-in-time by design: nothing in between should cache it.
     res.setHeader('cache-control', 'no-store')
-    res.status(200).json(wantsExplain ? { attestation, breakdown: explain(breakdown) } : attestation)
+    res.setHeader('X-KYA-Source', source)
+    res
+      .status(200)
+      .json(
+        wantsExplain
+          ? { attestation, breakdown: explain(breakdown), source, captured_at: capturedAt }
+          : attestation,
+      )
   } catch (error) {
     if (error instanceof InvalidAddressError) {
       res.status(400).json({ error: error.message, usage: '/verify?address=0x...' })
+      return
+    }
+    if (error instanceof NoFixtureError) {
+      res.status(404).json({ error: error.message, offline: true, fixtures: error.available })
       return
     }
     if (error instanceof BlockscoutError) {
@@ -106,6 +131,12 @@ function main(): void {
     console.log(`KYA · GET http://localhost:${listenPort}/verify?address=0x...`)
     console.log(`  ui        http://localhost:${listenPort}/`)
     console.log(`  chain     ${chainId()}`)
+    console.log(
+      isOffline()
+        ? `  mode      OFFLINE: replaying ${listFixtures().length} fixture(s) from data/fixtures/, no network`
+        : `  mode      live (Blockscout Pro), 10-minute cache in data/cache/; ?offline=1 replays data/fixtures/`,
+    )
+    if (isOffline()) for (const address of listFixtures()) console.log(`              ${address}`)
     console.log(`  attester  ${attesterAccount().address}   (pin this address to verify signatures)`)
   })
 }
