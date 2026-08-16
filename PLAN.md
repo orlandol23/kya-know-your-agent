@@ -75,7 +75,7 @@ Cada dia cabe num Bloco Inegociável de 2h. Datas reais: D1 foi 13/08; D2 escorr
 |---|---|---|---|
 | **D1** | 13/08 ✅ | Scaffold + `blockscout.ts` + `collect.ts`: os 4 sinais impressos no terminal, na Pro API | feito |
 | **D2** | 15/08 ✅ | `addresses.csv` com 30 endereços + `signals.csv` + `calibrate.ts` com percentis e limiares. Resultado em 4c1: idade e volume separam, diversidade e ritmo não | feito |
-| **D3** | 16/08 | `config.ts` com os limiares medidos + **funding provenance** (primeiro inbound, lista curta de CEX e mixers) + `score.ts` com **média geométrica + confidence + compliance gate** + `verdict` + `cli.ts` | Funding pode virar D4 se travar; aí os pesos renormalizam para 2 eixos |
+| **D3** | 16/08 ✅ | `config.ts` (separa MEDIDO de ESCOLHIDO) + funding provenance com OFAC/mixers/CEX + `score.ts` com média geométrica, confidence e compliance gate + `verdict.ts` + `cli.ts`. Separação 10/10 nos dois extremos | feito |
 | **D4** | 17/08 | `attest.ts` + `server.ts`: `curl /verify?address=` devolve atestado assinado, com snippet de verificação no README | Nada |
 | **D5** | 18/08 | `gate.ts` + `demo/`: wallet nova recebe 403, wallet com histórico paga e recebe 200. Timebox 1h para x402 real; fallback é header sintético | Settlement real |
 | **D6** | 19/08 | `ui/index.html`: dois painéis, badge de veredito, sinais, link de evidência, e **o motivo do bloqueio em texto na tela** | Animações |
@@ -239,7 +239,28 @@ familiarity       —        roadmap         contata vendedores x402 com frequê
 
 **Diversidade e ritmo saem da média geométrica.** A calibração mostrou que não separam os grupos (ver c1). Ritmo vira `cadence_penalty` multiplicativa, que é onde ele sempre pertenceu. Diversidade continua sendo **coletada e exibida** no atestado como evidência, mas com peso zero, e isso é declarado. É honesto e é um bom momento de pitch: *"medi e dois sinais não separavam, então não entram na conta."*
 
-**Com só dois eixos (maturity e volume), a média geométrica fica frágil.** Por isso o funding provenance **sobe do D5 para o D3**: sem ele a v0.1 tem eixos demais de menos. Se o funding não sair no D3, os pesos renormalizam para maturity 0.58 / volume 0.42 e o projeto continua de pé, mas mais fraco.
+**O funding entrou no D3 e é o eixo mais forte da v0.1.** Três listas, com proveniência declarada no código:
+
+```
+SANCIONADOS   ⭐ fonte autoritativa. Lista SDN do OFAC, publicação de 07/08/2026,
+              100 endereços com idType "Digital Currency Address - ETH",
+              15 com atividade real na Base. O gate disparou de verdade num
+              endereço do Lazarus Group.
+MIXERS        3 contratos do Tornado Cash, verificados lendo o Blockscout na
+              chain 1. Ressalva declarada: não estão deployados na Base, então
+              o ramo não dispara lá hoje. Lista separada da SDN porque o
+              Tornado foi deslistado (o co-fundador continua listado).
+CEX           ⚠️ comportamental, IDENTIDADE NÃO CONFIRMADA. Não existe fonte de
+              label de CEX para a Base: Blockscout devolve name null, eth-labels
+              é scraper sem dataset. Derivado do harvest do D2 por regra fixada
+              ANTES de ver o resultado: EOA com mais de 1M de transações na Base
+              que foi primeiro inbound de pelo menos 3 das 74 amostradas.
+              Três endereços, marcados no código como IDENTITY UNCONFIRMED.
+```
+
+Bug corrigido no caminho: o primeiro inbound de **token** costuma nomear um contrato, não um financiador (um endereço saiu com "funder" 0x4200…0006, que é o WETH da Base). O inbound **nativo** tem precedência; token transfer é fallback só para carteiras que nunca enviaram transação, que é justamente o caso das carteiras de relayer.
+
+`WEIGHTS_WITHOUT_FUNDING` fica no `config.ts` para a troca ser de uma linha, caso o eixo precise sair.
 
 Declare no README qual subconjunto está ativo.
 
@@ -275,16 +296,44 @@ TRUSTED_MIN    = menor score do grupo established (ou o piso do vão abaixo dele
 
 `calibrate.ts` fecha imprimindo a tabela de separação: quantos de cada grupo caíram em cada veredito. A meta honesta: 10 de 10 established viram trusted, 10 de 10 fresh viram suspicious, e o grupo mid se distribui entre unknown e as bordas.
 
-**A tabela de casos óbvios é o benchmark.** O Marko foi explícito: validar em escala exigiria simular a rede inteira; para a hackathon, cobrir os casos óbvios numa tabela é o equivalente de benchmark. Então o `addresses.csv` deve conter, além dos 3 estratos, o que der para achar de:
+**A tabela de casos óbvios é o benchmark.** O Marko foi explícito: validar em escala exigiria simular a rede inteira; para a hackathon, cobrir os casos óbvios numa tabela é o equivalente de benchmark.
+
+Estado real, medido no D3 (16/08):
 
 ```
-wallet fresca                              → suspicious
-wallet fundada por CEX, uso normal         → trusted
-wallet que tocou mixer (se achar)          → gated
-wallet com 1 contraparte só, volume alto   → suspicious ou unknown (o vitalik.eth da Base)
+caso                                    esperado      resultado
+wallet fresca, histórico zero           suspicious    ✅ score 0
+wallet fresca fundada por CEX, 2 dias   suspicious    ✅ score 60
+wallet estabelecida fundada por CEX     trusted       ✅ score 857
+endereço sancionado (OFAC)              gated         ✅ Lazarus Group, score 0
+usa protocolos normais todo dia         trusted       ⏳ roadmap: sinal de contratos
+fundada por wallet fresca suspeita      suspicious    ⏳ parcial: funding classifica
+                                                         como unknown, não pune
 ```
 
-Se algum desses não existir no conjunto, diga que é o próximo a cobrir. Não invente.
+Separação no conjunto de calibração: **10/10 fresh → suspicious, 10/10 established → trusted, com vão vazio de 109 pontos (84 a 193).** O estrato mid espalha 4 suspicious / 2 unknown / 4 trusted, que é o que um estrato de fronteira deve fazer.
+
+## ⭐ A wallet fresca fundada por CEX: a melhor demonstração do desenho
+
+```
+funding 1.000 (exchange), maturity 0, volume 0  →  score 60  →  SUSPICIOUS
+```
+
+Com **soma linear** ela teria tirado cerca de 400 e passado. Com **média geométrica**, o eixo forte não compensou os fracos. Este é o argumento mais concreto para "por que não é só somar os sinais", e vale um trecho do pitch.
+
+## ⚠️ Decisão sobre o vitalik.eth: TRUSTED está certo
+
+A tabela original esperava que ele saísse suspicious ou unknown por ter 1 contraparte na janela. Ele saiu **TRUSTED com 563**, e a linha do benchmark é que estava errada, não o score.
+
+Ele tem 1103 dias e 37 mil transações: é literalmente um dos endereços mais estabelecidos que existem.
+
+E o "1 contraparte" era artefato de medição. A janela recente está tomada por spam **de entrada**. Isso revela um problema maior que a calibração não tinha nomeado:
+
+> **Diversidade contando transações de entrada é manipulável.** Qualquer um pode spammar um endereço para alterar o número dele.
+
+Ou seja: diversidade não saiu do score só por não separar os grupos. Saiu porque, do jeito que está medida, **mede a coisa errada**. Isso é uma resposta muito melhor no pitch, e não justifica reintroduzi-la com peso pequeno, o que seria calibrar no próprio alvo.
+
+Se algum caso do benchmark não existir no conjunto, diga que é o próximo a cobrir. Não invente.
 
 ## e) A resposta pronta para a pergunta do juiz
 
@@ -515,12 +564,27 @@ PREDICTION MARKETS   o insider da Google criou wallet fresca, apostou US$200K
             alvo: Yuri e os olheiros
 
 1:30-5:30   DEMO AO VIVO, do ponto de vista do VENDEDOR
-            a tela mostra requests chegando no endpoint.
-            Agente A: 8 meses, financiado por CEX, 58 contrapartes
-              → 200 OK, recurso entregue, pagamento liquidado
-            Agente B: 3 dias, financiado por mixer, 1 contraparte
-              → 403, e NA TELA o motivo: "funded through a mixer, 3 days old"
+            a tela mostra requests chegando no endpoint. TRÊS casos, nesta ordem:
+
+            1. 0x2CfF890f…   score 857 · fundada por exchange · 648 dias
+               → 200 OK, recurso entregue, pagamento liquidado
+
+            2. wallet fresca fundada por exchange · 2 dias
+               → 403, score 60
+               "Financiamento forte, mas sem histórico nenhum. Com uma soma
+                simples ela teria passado. Com média geométrica, um eixo forte
+                não compensa os fracos."
+               ⭐ ESTE é o caso que mostra o score TRABALHANDO
+
+            3. endereço do Lazarus Group (lista SDN do OFAC)
+               → bloqueio instantâneo, score 0, gated
+               "Isso nem chega a ser pontuado. É um portão, não uma nota."
+
+            Sempre com o MOTIVO em texto na tela, não só o código de status.
             "Prevenimos um mau uso do serviço." Essa é a história.
+
+            // Por que os três: o caso 3 sozinho é fraco, um juiz diz "isso é
+            // só consultar uma lista". O caso 2 é o que prova que o score pensa.
             alvo: Jimmy, e é o que o Yuri leva embora
 
 5:30-7:30   COMO FUNCIONA, curto
@@ -528,6 +592,14 @@ PREDICTION MARKETS   o insider da Google criou wallet fresca, apostou US$200K
             forte"), a calibração medida em 30 endereços, o atestado assinado
             "o score mede histórico, não intenção. Mesmo princípio do antispam."
             + a tabela de casos óbvios (é o benchmark da hackathon)
+
+            ⭐ O momento mais forte deste trecho: "eu medi quatro sinais e dois
+            não separavam os grupos. Ritmo estava invertido, porque wallet nova
+            de bot dispara 150 transações num dia e endereço antigo fica quieto.
+            E diversidade, do jeito que eu media, era manipulável: qualquer um
+            pode spammar um endereço para mudar o número dele. Então saíram da
+            conta. Os limiares saem do dado, e o script que os deriva está no
+            repositório."
             alvo: Miloski
 
 7:30-9:00   POR QUE É UMA SEMENTE + roadmap nomeado
