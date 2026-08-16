@@ -74,13 +74,73 @@ header and blocks `suspicious` agents with 403 **before settlement**: the
 rejected agent pays nothing, the seller risks nothing. `unknown` passes with
 an `X-KYA-Verdict` header; blocking it is the seller's choice.
 
+```ts
+import { paymentMiddleware } from 'x402-express'
+import { kyaGate } from './src/gate.js'
+
+app.use(kyaGate())                                          // 1. who is paying, what have they done
+app.use(paymentMiddleware(payTo, { 'GET /chem': { price: '$0.001', network: 'base-sepolia' } }))
+app.get('/chem', handler)                                   // 3. served only past both
+```
+
+The order is the mechanism: x402-express settles only after the handler answers
+2xx, and it never runs if the gate answered first. The gate reads
+`payload.authorization.from` from the `X-PAYMENT` header and does not check
+the signature over it; the payment middleware does, so a forged `from` fails
+there and never settles. Requests without a payment header pass through so the
+client can receive the 402 with the payment requirements.
+
+A refusal carries the reason and the signed attestation, so the refused agent
+can verify the claim against Blockscout itself:
+
+```jsonc
+HTTP/1.1 403 Forbidden
+X-KYA-Verdict: suspicious
+
+{ "error": "KYA gate: payer refused before settlement",
+  "verdict": "suspicious", "gated": false, "score": 0,
+  "reason": "no track record to speak of: score 0 at or below 84",
+  "reasons": ["no inbound transfer ever: nothing funded this wallet", "..."],
+  "payer": "0x8b00...C54f",
+  "evidence": "https://base.blockscout.com/address/0x8b00...C54f",
+  "attestation": { "...": "the signed attestation above" } }
+```
+
+`gated: true` means the compliance gate fired (OFAC SDN, known mixers): the
+address was not scored, it was blocked. If reputation cannot be read the gate
+fails closed with 503, still before settlement.
+
 ## Try it
 
     cp .env.example .env    # Blockscout Pro key + throwaway attester key
     npm i
     npx tsx src/cli.ts 0xYourAddress                     # verdict, score, why, signature
-    npx tsx src/server.ts                                # GET /verify
+    npx tsx src/server.ts                                # GET /verify + the demo UI at /
     curl "localhost:3000/verify?address=0xYourAddress"
+    open http://localhost:3000/                          # two agents side by side
+
+The UI is one static file (`ui/index.html`, no build, no dependency): two
+panels, each with an address field and one-click demo agents. Per panel it
+shows the verdict, **the reason in text**, the score against the calibrated
+cutoffs, the three weighted axes, the collected-but-unscored signals, and the
+Blockscout evidence link. It calls `/verify?address=…&explain=1`, which returns
+`{ attestation, breakdown }`: the same signed attestation plus the unsigned
+score arithmetic (axes, weights, penalty, confidence, cutoffs) so the screen
+can draw why the score is what it is. Bookmark `/?a=0x…&b=0x…` to preload both.
+
+The demo, two terminals. Reputation is read from Base mainnet; the payment
+runs on Base Sepolia with the same address:
+
+    npx tsx demo/paid-endpoint.ts                        # seller: paid endpoint behind the gate
+    npx tsx demo/agents.ts                               # buyers: established wallet 200, fresh wallet 403
+
+By default settlement is **simulated**: x402-express runs for real but is
+pointed at a stub facilitator inside the endpoint process, so no testnet funds
+are needed. The fresh agent is a real `x402-fetch` client (a zero-balance
+wallet can still sign); the established agent sends a synthetic `X-PAYMENT`
+header because its key is not ours. Add `--real` to both commands to settle
+through `x402.org/facilitator`; then set `DEMO_ESTABLISHED_PRIVATE_KEY` to a
+wallet with history holding Sepolia USDC, and `DEMO_PAY_TO` to your address.
 
 ## Deliberately not in v0.1
 

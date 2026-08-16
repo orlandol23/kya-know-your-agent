@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KYA · Know Your Agent</title>
+<style>
+  /*
+   * One file, no build, no dependency. Built to be read on a shared screen in a
+   * video call: light theme, large type (nothing under 18px), high contrast.
+   * The verdict and the reason are the two biggest things on the page, on
+   * purpose: the pitch is "the reason is on screen", not "look at the score".
+   */
+  :root {
+    --bg: #f4f6f8;
+    --panel: #ffffff;
+    --ink: #1b1f24;
+    --muted: #4b5563;
+    --line: #d0d7de;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+    --trusted: #1a7f37;
+    --trusted-ink: #0f5a25;
+    --trusted-tint: #c6f0d0;
+    --unknown: #57606a;
+    --unknown-ink: #3d444d;
+    --unknown-tint: #e6e8eb;
+    --suspicious: #cf222e;
+    --suspicious-ink: #a40e26;
+    --suspicious-tint: #ffd7d5;
+    --gated: #1b1f24;
+    --gated-ink: #ff7b72;
+    font-size: 20px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink); }
+  body { font: 1rem/1.4 system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; padding: 24px 28px 48px; }
+  a { color: #0969da; }
+  button { font: inherit; cursor: pointer; }
+  input { font: inherit; }
+
+  header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 28px; margin-bottom: 20px; }
+  header h1 { margin: 0; font-size: 2rem; letter-spacing: -0.01em; }
+  header h1 span { color: var(--muted); font-weight: 500; }
+  header p { margin: 0; font-size: 1.15rem; color: var(--muted); }
+  header .rule { margin-left: auto; font-size: 1rem; color: var(--muted); font-family: var(--mono); }
+
+  main { display: grid; grid-template-columns: repeat(auto-fit, minmax(560px, 1fr)); gap: 24px; align-items: start; }
+
+  .panel { background: var(--panel); border: 2px solid var(--line); border-radius: 16px; padding: 22px 24px 26px; min-height: 420px; }
+  .panel form { display: flex; gap: 12px; }
+  .panel input[type=text] {
+    flex: 1; min-width: 0; padding: 12px 14px; font-family: var(--mono); font-size: 1.05rem;
+    border: 2px solid var(--line); border-radius: 10px; color: var(--ink); background: #fff;
+  }
+  .panel input[type=text]:focus { outline: 3px solid #0969da; outline-offset: 1px; border-color: #0969da; }
+  .panel button.verify {
+    padding: 12px 22px; font-size: 1.05rem; font-weight: 700; border-radius: 10px;
+    border: 2px solid var(--ink); background: var(--ink); color: #fff;
+  }
+  .panel button.verify:disabled { opacity: 0.55; cursor: progress; }
+
+  .presets { display: flex; flex-wrap: wrap; gap: 10px; margin: 12px 0 0; }
+  .presets .label { font-size: 0.95rem; color: var(--muted); align-self: center; }
+  .presets button {
+    font-size: 0.95rem; padding: 7px 14px; border-radius: 999px; border: 2px solid var(--line);
+    background: #fff; color: var(--ink);
+  }
+  .presets button:hover { border-color: var(--ink); }
+  .presets button code { font-family: var(--mono); color: var(--muted); }
+
+  .result { margin-top: 22px; }
+  .status { display: flex; align-items: center; gap: 14px; font-size: 1.15rem; color: var(--muted); padding: 24px 0; }
+  .status .spinner { width: 26px; height: 26px; border: 4px solid var(--line); border-top-color: var(--ink); border-radius: 50%; animation: spin 0.9s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .status .elapsed { font-family: var(--mono); }
+  .error { border: 3px solid var(--suspicious); background: var(--suspicious-tint); color: var(--suspicious-ink); border-radius: 12px; padding: 16px 18px; font-size: 1.15rem; }
+  .error b { display: block; margin-bottom: 4px; }
+  .idle { color: var(--muted); font-size: 1.1rem; padding: 24px 0; }
+
+  /* 1. the verdict */
+  .verdict-row { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
+  .badge {
+    display: inline-block; font-size: 2.6rem; font-weight: 800; letter-spacing: 0.04em; line-height: 1;
+    padding: 14px 22px; border-radius: 12px; color: #fff; border: 4px solid transparent;
+  }
+  .badge.trusted { background: var(--trusted); }
+  .badge.unknown { background: var(--unknown); }
+  .badge.suspicious { background: var(--suspicious); }
+  /* gated is a stop sign, not a grade: black, red type, red frame */
+  .badge.gated { background: var(--gated); color: var(--gated-ink); border-color: var(--suspicious); }
+  .gate-note { font-size: 1.05rem; font-weight: 700; color: var(--suspicious-ink); }
+  .score { font-size: 2.6rem; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+  .score small { font-size: 1.1rem; font-weight: 500; color: var(--muted); margin-left: 6px; }
+  .address { font-family: var(--mono); font-size: 1rem; color: var(--muted); margin-top: 10px; word-break: break-all; }
+
+  /* 2. the reason: the most important text on the page */
+  .reason { font-size: 1.55rem; font-weight: 700; line-height: 1.3; margin: 18px 0 8px; padding: 14px 18px; border-left: 8px solid; border-radius: 6px; }
+  .reason.trusted { color: var(--trusted-ink); border-color: var(--trusted); background: var(--trusted-tint); }
+  .reason.unknown { color: var(--unknown-ink); border-color: var(--unknown); background: var(--unknown-tint); }
+  .reason.suspicious { color: var(--suspicious-ink); border-color: var(--suspicious); background: var(--suspicious-tint); }
+  .reason.gated { color: #fff; border-color: var(--suspicious); background: var(--gated); }
+  ul.reasons { margin: 0 0 4px; padding-left: 26px; font-size: 1.1rem; }
+  ul.reasons li { margin: 4px 0; }
+
+  h3 { font-size: 1rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 26px 0 10px; font-weight: 700; }
+  h3 span { text-transform: none; letter-spacing: 0; font-weight: 500; }
+
+  /* 3. score bar with the calibrated cutoffs, then the three axes */
+  .scorebar { position: relative; height: 22px; border-radius: 6px; overflow: hidden; display: flex; border: 2px solid var(--line); }
+  .scorebar .zone.s { background: var(--suspicious-tint); }
+  .scorebar .zone.u { background: var(--unknown-tint); }
+  .scorebar .zone.t { background: var(--trusted-tint); }
+  .scorebar .marker { position: absolute; top: 0; bottom: 0; width: 6px; margin-left: -3px; background: var(--ink); }
+  .scorebar-labels { position: relative; height: 1.4rem; font-family: var(--mono); font-size: 0.95rem; color: var(--muted); }
+  .scorebar-labels span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
+  .axes { display: grid; grid-template-columns: max-content max-content 1fr max-content max-content; gap: 8px 14px; align-items: center; font-size: 1.05rem; margin-top: 14px; }
+  .axes .raw { color: var(--muted); white-space: nowrap; }
+  .axes .name { font-weight: 700; }
+  .axes .weight { font-family: var(--mono); color: var(--muted); }
+  .axes .bar { height: 20px; background: var(--unknown-tint); border-radius: 5px; overflow: hidden; }
+  .axes .bar i { display: block; height: 100%; background: var(--ink); }
+  .axes .value { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  .formula { font-family: var(--mono); font-size: 0.95rem; color: var(--muted); margin-top: 10px; }
+
+  /* 4. collected, not scored */
+  .unscored { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; font-size: 1.05rem; }
+  .unscored .k { color: var(--muted); }
+  .note { font-size: 0.95rem; color: var(--muted); margin-top: 8px; }
+
+  /* 5. evidence */
+  .evidence { font-size: 1.05rem; display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; }
+  .evidence .k { color: var(--muted); }
+  .evidence a { font-family: var(--mono); overflow-wrap: anywhere; }
+  .evidence code { font-family: var(--mono); overflow-wrap: anywhere; }
+</style>
+</head>
+<body>
+<header>
+  <h1>KYA <span>· Know Your Agent</span></h1>
+  <p>On-chain reputation for AI agents that pay through x402. Reads the agent's Base history, answers before the payment settles.</p>
+  <div class="rule" id="rule">suspicious ≤ 84 &lt; unknown &lt; 193 ≤ trusted</div>
+</header>
+
+<main>
+  <section class="panel" data-panel="a" aria-label="Agent A">
+    <form>
+      <input type="text" name="address" placeholder="0x… agent address" autocomplete="off" spellcheck="false" aria-label="address">
+      <button type="submit" class="verify">Verify</button>
+    </form>
+    <div class="presets"><span class="label">demo:</span></div>
+    <div class="result"><div class="idle">Enter an address, or pick a demo agent.</div></div>
+  </section>
+
+  <section class="panel" data-panel="b" aria-label="Agent B">
+    <form>
+      <input type="text" name="address" placeholder="0x… agent address" autocomplete="off" spellcheck="false" aria-label="address">
+      <button type="submit" class="verify">Verify</button>
+    </form>
+    <div class="presets"><span class="label">demo:</span></div>
+    <div class="result"><div class="idle">Enter an address, or pick a demo agent.</div></div>
+  </section>
+</main>
+
+<script>
+(() => {
+  'use strict'
+
+  // The three cases of the pitch, in order. Left panel gets the first, right
+  // panel the other two, so the presenter never types an address live.
+  const PRESETS = {
+    a: [
+      { label: 'established · exchange-funded', address: '0x2CfF890f0378a11913B6129B2E97417a2c302680' },
+    ],
+    b: [
+      { label: 'fresh · exchange-funded · days old', address: '0xBEabA203Ef49Ee2828b77b0B7E84839e76092787' },
+      { label: 'sanctioned · OFAC SDN', address: '0x098b716b8aaf21512996dc57eb0615e2383e2f96' },
+    ],
+  }
+  const TIMEOUT_MS = 90000
+
+  const short = (a) => a.length > 12 ? `${a.slice(0, 6)}…${a.slice(-4)}` : a
+
+  // DOM helpers: everything from the server goes in as text, never as HTML.
+  function el(tag, attrs, ...children) {
+    const node = document.createElement(tag)
+    for (const [k, v] of Object.entries(attrs || {})) {
+      if (k === 'class') node.className = v
+      else if (k === 'text') node.textContent = v
+      else if (k === 'style') node.style.cssText = v
+      else node.setAttribute(k, v)
+    }
+    for (const c of children) if (c != null) node.append(c)
+    return node
+  }
+
+  function verdictClass(a) { return a.gated ? 'gated' : a.verdict }
+  function verdictLabel(a) { return a.gated ? 'GATED' : a.verdict.toUpperCase() }
+  const fmt = (n, d = 3) => Number(n).toFixed(d)
+  const day = (iso) => iso ? iso.slice(0, 10) : '—'
+
+  function renderResult(container, { attestation: a, breakdown: b }) {
+    const cls = verdictClass(a)
+    const frag = document.createDocumentFragment()
+    // The cutoffs come from the server (config.ts), not from this file.
+    document.getElementById('rule').textContent = `suspicious ≤ ${b.cutoffs.suspicious_max} < unknown < ${b.cutoffs.trusted_min} ≤ trusted`
+
+    // 1. verdict + score
+    const row = el('div', { class: 'verdict-row' },
+      el('span', { class: `badge ${cls}`, text: verdictLabel(a) }),
+      el('span', { class: 'score' }, String(a.score), el('small', { text: `/ ${b.scale}` })),
+    )
+    if (a.gated) row.append(el('span', { class: 'gate-note', text: 'compliance gate: not scored, blocked' }))
+    frag.append(row)
+    frag.append(el('div', { class: 'address', text: a.address }))
+
+    // 2. the reason
+    frag.append(el('div', { class: `reason ${cls}`, text: a.summary }))
+    frag.append(el('ul', { class: 'reasons' }, ...a.reasons.map((r) => el('li', { text: r }))))
+
+    // 3. score against the calibrated cutoffs, then the axes
+    frag.append(el('h3', {}, 'Score ', el('span', { text: `· weighted geometric mean of three axes; a weak axis cannot be bought back with a strong one` })))
+    const { suspicious_max: sMax, trusted_min: tMin } = b.cutoffs
+    const pct = (v) => `${(100 * Math.min(Math.max(v, 0), b.scale) / b.scale).toFixed(2)}%`
+    frag.append(el('div', { class: 'scorebar' },
+      el('div', { class: 'zone s', style: `width:${pct(sMax)}` }),
+      el('div', { class: 'zone u', style: `width:${pct(tMin - sMax)}` }),
+      el('div', { class: 'zone t', style: `flex:1` }),
+      el('div', { class: 'marker', style: `left:${pct(a.score)}`, title: `score ${a.score}` }),
+    ))
+    frag.append(el('div', { class: 'scorebar-labels' },
+      el('span', { style: 'left:0;transform:none', text: '0' }),
+      el('span', { style: `left:${pct(sMax)}`, text: String(sMax) }),
+      el('span', { style: `left:${pct(tMin)}`, text: String(tMin) }),
+      el('span', { style: 'right:0;transform:none', text: String(b.scale) }),
+    ))
+    const s = a.signals
+    const raw = {
+      funding: s.funding.source ? s.funding.class : 'no inbound',
+      maturity: s.first_seen ? `${Math.round(s.age_days)} days` : 'no history',
+      volume: `${s.tx_count_exact ? '' : '≥ '}${s.tx_count} tx`,
+    }
+    const axes = el('div', { class: 'axes' })
+    for (const [name, axis] of Object.entries(b.axes)) {
+      axes.append(
+        el('span', { class: 'name', text: name }),
+        el('span', { class: 'weight', text: `w ${fmt(axis.weight, 2)}` }),
+        el('div', { class: 'bar' }, el('i', { style: `width:${(100 * axis.normalized).toFixed(1)}%` })),
+        el('span', { class: 'value', text: fmt(axis.normalized) }),
+        el('span', { class: 'raw', text: raw[name] || '' }),
+      )
+    }
+    frag.append(axes)
+    frag.append(el('div', { class: 'formula', text: a.gated
+      ? `not scored: the compliance gate fired first, score forced to 0`
+      : `mean ${fmt(b.geometric_mean)} × penalty ${fmt(b.penalty, 2)} × confidence ${fmt(b.confidence, 2)} → ${a.score} / ${b.scale}` }))
+
+    // 4. collected, not scored
+    frag.append(el('h3', {}, 'Collected, not scored ', el('span', { text: '· weight 0' })))
+    frag.append(el('div', { class: 'unscored' },
+      el('span', { class: 'k', text: 'diversity' }), el('span', { text: `${s.distinct_counterparties} distinct counterparties in the window` }),
+      el('span', { class: 'k', text: 'cadence' }), el('span', { text: `${s.txs_24h} tx / 24h · ${s.txs_7d} tx / 7d` }),
+      el('span', { class: 'k', text: 'burst' }), el('span', { text: s.burst_ratio == null ? 'not enough transactions to measure' : `${s.burst_ratio}× · penalty ×${fmt(b.penalty, 2)}` }),
+    ))
+    frag.append(el('div', { class: 'note', text: 'Diversity and cadence did not separate the reference set (cadence was inverted: fresh bots fire 150 tx a day). Shown as evidence, not counted. Cadence only enters as a burst penalty.' }))
+
+    // 5. evidence
+    const e = a.evidence
+    frag.append(el('h3', {}, 'Evidence ', el('span', { text: '· verify it yourself' })))
+    frag.append(el('div', { class: 'evidence' },
+      el('span', { class: 'k', text: 'Blockscout' }), el('a', { href: e.blockscout_url, target: '_blank', rel: 'noopener', text: `${e.blockscout_url.replace(/^https?:\/\//, '').replace(a.address, short(a.address))} ↗` }),
+      el('span', { class: 'k', text: 'window' }), el('span', { text: `last ${e.window.size} of ≤ ${e.window.max} transactions${e.window.capped ? ' (capped)' : ''} · chain ${e.chain_id} · fetched ${e.fetched_at.replace('T', ' ').slice(0, 19)} UTC` }),
+      el('span', { class: 'k', text: 'funder' }), el('span', {}, s.funding.source
+        ? el('span', {}, el('code', { text: s.funding.source }), ` via ${s.funding.via}${s.funding.first_inbound_at ? `, ${day(s.funding.first_inbound_at)}` : ''}${s.funding.label ? ` · ${s.funding.label}` : ''}`)
+        : 'no inbound transfer ever'),
+      el('span', { class: 'k', text: 'attester' }), el('code', { text: a.attester }),
+      el('span', { class: 'k', text: 'signature' }), el('span', {}, el('code', { text: `${a.signature.slice(0, 26)}…` }), ` EIP-191, issued ${a.issued_at.replace('T', ' ').slice(0, 19)} UTC`),
+    ))
+
+    container.replaceChildren(frag)
+  }
+
+  function renderError(container, title, detail) {
+    container.replaceChildren(el('div', { class: 'error' }, el('b', { text: title }), detail ? el('span', { text: detail }) : null))
+  }
+
+  function renderLoading(container, address) {
+    const elapsed = el('span', { class: 'elapsed', text: '0s' })
+    container.replaceChildren(el('div', { class: 'status' },
+      el('div', { class: 'spinner' }),
+      el('span', {}, `Reading Base history for ${short(address)}… `, elapsed),
+    ))
+    const t0 = Date.now()
+    const timer = setInterval(() => { elapsed.textContent = `${Math.round((Date.now() - t0) / 1000)}s` }, 250)
+    return () => clearInterval(timer)
+  }
+
+  async function verifyInto(panel, address) {
+    const container = panel.querySelector('.result')
+    const button = panel.querySelector('button.verify')
+    if (panel._abort) panel._abort.abort()
+    const abort = new AbortController()
+    panel._abort = abort
+    const timeout = setTimeout(() => abort.abort('timeout'), TIMEOUT_MS)
+    const stopTimer = renderLoading(container, address)
+    button.disabled = true
+
+    try {
+      const res = await fetch(`/verify?address=${encodeURIComponent(address)}&explain=1`, { signal: abort.signal, cache: 'no-store' })
+      let body = null
+      try { body = await res.json() } catch { /* not JSON */ }
+      if (res.status === 200 && body && body.attestation) {
+        renderResult(container, body)
+      } else if (res.status === 400) {
+        renderError(container, 'Not a valid address', body?.error || `HTTP 400`)
+      } else if (res.status === 502) {
+        renderError(container, 'Blockscout (upstream) unavailable', body?.error || 'HTTP 502. Try again in a moment.')
+      } else {
+        renderError(container, `Server answered HTTP ${res.status}`, body?.error || '')
+      }
+    } catch (err) {
+      if (abort.signal.aborted && abort.signal.reason === 'timeout') {
+        renderError(container, `No answer after ${TIMEOUT_MS / 1000}s`, 'Blockscout is slow or down. Try again.')
+      } else if (abort.signal.aborted) {
+        return // superseded by a newer request in the same panel
+      } else {
+        renderError(container, 'Cannot reach the KYA server', `${String(err && err.message ? err.message : err).replace(/\.$/, '')}. Is "npx tsx src/server.ts" running on this origin?`)
+      }
+    } finally {
+      clearTimeout(timeout)
+      stopTimer()
+      if (panel._abort === abort) { button.disabled = false; panel._abort = null }
+    }
+  }
+
+  function wire(panel) {
+    const key = panel.dataset.panel
+    const form = panel.querySelector('form')
+    const input = form.querySelector('input')
+    form.addEventListener('submit', (ev) => {
+      ev.preventDefault()
+      const address = input.value.trim()
+      if (!address) { input.focus(); return }
+      void verifyInto(panel, address)
+    })
+    const presets = panel.querySelector('.presets')
+    for (const p of PRESETS[key] || []) {
+      presets.append(el('button', { type: 'button', title: p.address, text: p.label }))
+      presets.lastChild.addEventListener('click', () => {
+        input.value = p.address
+        void verifyInto(panel, p.address)
+      })
+    }
+    // ?a=0x…&b=0x… preloads and runs, for a bookmarked demo tab.
+    const preset = new URLSearchParams(location.search).get(key)
+    if (preset) { input.value = preset; void verifyInto(panel, preset) }
+  }
+
+  document.querySelectorAll('.panel').forEach(wire)
+})()
+</script>
+</body>
+</html>
