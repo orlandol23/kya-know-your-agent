@@ -16,6 +16,7 @@ import {
   requireApiKey,
 } from '../src/blockscout.js'
 import { parseCsv, toCsv, type CsvRow } from '../src/csv.js'
+import { deriveFunding, type FundingProvenance } from '../src/funding.js'
 import { deriveSignals, type Signals } from '../src/signals.js'
 
 if (existsSync('.env')) process.loadEnvFile('.env')
@@ -23,7 +24,11 @@ if (existsSync('.env')) process.loadEnvFile('.env')
 const ADDRESSES_CSV = 'data/addresses.csv'
 const SIGNALS_CSV = 'data/signals.csv'
 
-/** Section 4b of PLAN.md. */
+/**
+ * Section 4b of PLAN.md, plus four columns D3 needs to score the reference set
+ * offline: window_size is the evidence mass behind confidence, burst_ratio
+ * feeds the cadence penalty, and the funding pair is the heaviest axis.
+ */
 const SIGNALS_COLUMNS = [
   'address',
   'label',
@@ -33,9 +38,20 @@ const SIGNALS_COLUMNS = [
   'distinct_counterparties',
   'txs_24h',
   'txs_7d',
+  'window_size',
+  'burst_ratio',
+  'funding_class',
+  'funding_source',
   'fetched_at',
   'blockscout_url',
 ]
+
+const SIGNALS_HEADER = `# Signals for the addresses in data/addresses.csv, written by scripts/collect.ts.
+# Committed on purpose: it is the evidence behind every calibrated number.
+# Diversity and cadence are windowed over the last <= 150 transactions.
+# funding_class: exchange | mixer | sanctioned | unknown | none. See src/funding.ts
+# for where each list came from and what it does and does not prove.
+`
 
 const LABEL_WIDTH = 13
 
@@ -74,7 +90,7 @@ function print(signals: Signals): void {
   console.log('')
 }
 
-function toSignalsRow(signals: Signals, label: string): CsvRow {
+function toSignalsRow(signals: Signals, funding: FundingProvenance, label: string): CsvRow {
   return {
     address: signals.address,
     label,
@@ -84,6 +100,10 @@ function toSignalsRow(signals: Signals, label: string): CsvRow {
     distinct_counterparties: String(signals.distinctCounterparties),
     txs_24h: String(signals.txs24h),
     txs_7d: String(signals.txs7d),
+    window_size: String(signals.windowSize),
+    burst_ratio: signals.burstRatio === null ? '' : String(signals.burstRatio),
+    funding_class: funding.class,
+    funding_source: funding.source ?? '',
     fetched_at: signals.fetchedAt,
     blockscout_url: signals.blockscoutUrl,
   }
@@ -129,14 +149,16 @@ async function collectSet(): Promise<void> {
       const label = entry.label ?? ''
 
       try {
-        const signals = deriveSignals(await fetchAddressHistory(address))
-        rows.push(toSignalsRow(signals, label))
+        const history = await fetchAddressHistory(address)
+        const signals = deriveSignals(history)
+        const funding = deriveFunding(history)
+        rows.push(toSignalsRow(signals, funding, label))
         console.log(
           `${position}  ${address}  ${label.padEnd(13)}` +
             `age ${String(signals.ageDays).padStart(8)}d  ` +
             `tx ${String(signals.txCount).padStart(6)}  ` +
             `cp ${String(signals.distinctCounterparties).padStart(3)}  ` +
-            `7d ${String(signals.txs7d).padStart(3)}`,
+            `funding ${funding.class}`,
         )
       } catch (error) {
         const detail = error instanceof BlockscoutError ? error.message : String(error)
@@ -149,7 +171,7 @@ async function collectSet(): Promise<void> {
     pending = stillFailing
   }
 
-  writeFileSync(SIGNALS_CSV, toCsv(rows, SIGNALS_COLUMNS))
+  writeFileSync(SIGNALS_CSV, SIGNALS_HEADER + toCsv(rows, SIGNALS_COLUMNS))
   console.log(`\nwrote ${rows.length} rows to ${SIGNALS_CSV}`)
 
   const byLabel = new Map<string, number>()

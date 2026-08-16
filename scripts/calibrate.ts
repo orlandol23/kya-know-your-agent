@@ -13,7 +13,10 @@
 
 import { existsSync, readFileSync } from 'node:fs'
 
-import { parseCsv } from '../src/csv.js'
+import { parseCsv, type CsvRow } from '../src/csv.js'
+import type { FundingClass, FundingProvenance } from '../src/funding.js'
+import { scoreAddress } from '../src/score.js'
+import { percentile as percentileOf, sortedAscending } from '../src/stats.js'
 
 const SIGNALS_CSV = 'data/signals.csv'
 
@@ -32,28 +35,38 @@ const METRICS = [
 
 type Stats = { min: number; p25: number; p50: number; p75: number; max: number; n: number }
 
-/** Linear interpolation between order statistics, the numpy default. */
-function percentile(sorted: number[], fraction: number): number {
-  if (sorted.length === 0) return Number.NaN
-  if (sorted.length === 1) return sorted[0] as number
-  const rank = fraction * (sorted.length - 1)
-  const low = Math.floor(rank)
-  const high = Math.ceil(rank)
-  const lowValue = sorted[low] as number
-  if (low === high) return lowValue
-  return lowValue + (rank - low) * ((sorted[high] as number) - lowValue)
-}
-
 function summarize(values: number[]): Stats {
-  const sorted = [...values].sort((a, b) => a - b)
+  const sorted = sortedAscending(values)
   return {
-    min: percentile(sorted, 0),
-    p25: percentile(sorted, 0.25),
-    p50: percentile(sorted, 0.5),
-    p75: percentile(sorted, 0.75),
-    max: percentile(sorted, 1),
+    min: percentileOf(sorted, 0),
+    p25: percentileOf(sorted, 0.25),
+    p50: percentileOf(sorted, 0.5),
+    p75: percentileOf(sorted, 0.75),
+    max: percentileOf(sorted, 1),
     n: sorted.length,
   }
+}
+
+/** Rebuild just enough of a scored address from one CSV row. */
+function scoreRow(row: CsvRow): number {
+  const funding: FundingProvenance = {
+    class: (row.funding_class || 'unknown') as FundingClass,
+    source: row.funding_source || null,
+    label: null,
+    firstInboundAt: null,
+    via: null,
+  }
+  return scoreAddress(
+    {
+      address: row.address ?? '',
+      ageDays: Number(row.age_days ?? 0),
+      txCount: Number(row.tx_count ?? 0),
+      windowSize: Number(row.window_size ?? 0),
+      burstRatio: row.burst_ratio ? Number(row.burst_ratio) : null,
+      firstSeen: row.first_seen || null,
+    },
+    funding,
+  ).score
 }
 
 function format(value: number): string {
@@ -135,6 +148,77 @@ function main(): void {
       )
     }
   }
+
+  // ── scores and verdict cutoffs ────────────────────────────────────────────
+  const scores = new Map<string, number[]>()
+  const gated: string[] = []
+  for (const row of rows) {
+    const label = row.label ?? ''
+    const score = scoreRow(row)
+    scores.set(label, [...(scores.get(label) ?? []), score])
+    if (row.funding_class === 'mixer' || row.funding_class === 'sanctioned') {
+      gated.push(`${row.address} (${row.funding_class})`)
+    }
+  }
+
+  console.log('')
+  console.log('score   (weighted geometric mean x penalty x confidence, 0..1000)')
+  console.log(`  ${'group'.padEnd(13)}${'min'.padStart(10)}${'p25'.padStart(10)}` +
+    `${'p50'.padStart(10)}${'p75'.padStart(10)}${'max'.padStart(10)}${'n'.padStart(5)}`)
+  for (const group of GROUPS) {
+    const summary = summarize(scores.get(group) ?? [])
+    console.log(
+      `  ${group.padEnd(13)}${cell(summary.min)}${cell(summary.p25)}${cell(summary.p50)}` +
+        `${cell(summary.p75)}${cell(summary.max)}${String(summary.n).padStart(5)}`,
+    )
+  }
+
+  const freshScores = sortedAscending(scores.get('fresh') ?? [])
+  const establishedScores = sortedAscending(scores.get('established') ?? [])
+  const suspiciousMax = freshScores.at(-1) ?? 0
+  const trustedMin = establishedScores[0] ?? 0
+
+  console.log('')
+  console.log(`  SUSPICIOUS_MAX = highest fresh score      = ${format(suspiciousMax)}`)
+  console.log(`  TRUSTED_MIN    = lowest established score = ${format(trustedMin)}`)
+  if (trustedMin > suspiciousMax) {
+    console.log(`  the clusters do not touch: empty gap of ${format(trustedMin - suspiciousMax)} points`)
+  } else {
+    console.log(
+      `  ⚠ the clusters OVERLAP by ${format(suspiciousMax - trustedMin)} points. ` +
+        `No cutoff separates them cleanly; the numbers below will misclassify.`,
+    )
+  }
+
+  // Separation table, with the cutoffs this run just derived.
+  const verdictOf = (score: number): string =>
+    score <= suspiciousMax ? 'suspicious' : score >= trustedMin ? 'trusted' : 'unknown'
+
+  console.log('')
+  console.log('separation at those cutoffs')
+  console.log(`  ${'group'.padEnd(13)}${'suspicious'.padStart(12)}${'unknown'.padStart(10)}${'trusted'.padStart(10)}`)
+  for (const group of GROUPS) {
+    const counts = { suspicious: 0, unknown: 0, trusted: 0 }
+    for (const score of scores.get(group) ?? []) {
+      counts[verdictOf(score) as keyof typeof counts] += 1
+    }
+    console.log(
+      `  ${group.padEnd(13)}${String(counts.suspicious).padStart(12)}` +
+        `${String(counts.unknown).padStart(10)}${String(counts.trusted).padStart(10)}`,
+    )
+  }
+  console.log(
+    `  gated by compliance (scored 0 before any of this): ` +
+      `${gated.length === 0 ? 'none in the reference set' : gated.join(', ')}`,
+  )
+
+  console.log('')
+  console.log('paste into src/config.ts:')
+  console.log('')
+  console.log('  export const VERDICT = {')
+  console.log(`    suspiciousMax: ${format(suspiciousMax)},`)
+  console.log(`    trustedMin: ${format(trustedMin)},`)
+  console.log('  } as const')
 
   console.log('')
   console.log('paste into src/config.ts as the calibration comment:')
