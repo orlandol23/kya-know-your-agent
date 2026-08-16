@@ -1,5 +1,5 @@
 /**
- * npx tsx demo/paid-endpoint.ts [--real]
+ * npx tsx demo/paid-endpoint.ts [--real] [--offline]
  *
  * The seller side of the demo: a paid inference endpoint behind the KYA gate.
  * The story is a hosted chemistry model, priced per call over x402, whose
@@ -27,6 +27,10 @@
  *             Sepolia. The paying wallet needs Sepolia USDC and DEMO_PAY_TO
  *             should be an address you control.
  *
+ * --offline makes the gate replay data/fixtures/ instead of reading Blockscout
+ * (see src/history.ts): the demo survives Blockscout being down. A payer with
+ * no fixture is refused with 503, still before settlement.
+ *
  * Env: DEMO_PORT (4021), DEMO_PAY_TO (defaults to the attester address, which
  * is fine for simulated mode and wrong for real mode).
  */
@@ -39,9 +43,11 @@ import { attesterAccount } from '../src/attest.js'
 import { chainId } from '../src/blockscout.js'
 import { ConfigError, loadDotEnv } from '../src/config.js'
 import { kyaGate, type GateResult } from '../src/gate.js'
+import { isOffline, listFixtures, setOffline } from '../src/history.js'
 import { requireVerifyConfig } from '../src/verify.js'
 
 loadDotEnv()
+if (process.argv.includes('--offline')) setOffline(true)
 
 const REAL = process.argv.includes('--real')
 const DEFAULT_PORT = 4021
@@ -140,7 +146,7 @@ function main(): void {
     console.log(`KYA demo · paid endpoint  GET http://localhost:${listenPort}/chem?q=...`)
     console.log(`  price        ${PRICE} USDC on ${NETWORK}   pay to ${receiver}`)
     console.log(`  settlement   ${REAL ? `REAL via ${REAL_FACILITATOR}` : 'SIMULATED (stub facilitator, no funds move; run with --real for x402.org)'}`)
-    console.log(`  reputation   Base mainnet, chain ${chainId()}, via KYA gate before payment`)
+    console.log(`  reputation   Base mainnet, chain ${chainId()}, via KYA gate before payment` + (isOffline() ? `   OFFLINE: replaying ${listFixtures().length} fixture(s), no network` : ''))
     console.log('')
     console.log('  waiting for agents...')
     console.log('')

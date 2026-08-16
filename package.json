@@ -9,7 +9,9 @@
     "collect": "tsx scripts/collect.ts",
     "typecheck": "tsc --noEmit",
     "demo:endpoint": "tsx demo/paid-endpoint.ts",
-    "demo:agents": "tsx demo/agents.ts"
+    "demo:agents": "tsx demo/agents.ts",
+    "start:offline": "tsx src/server.ts --offline",
+    "capture": "tsx scripts/capture.ts"
   },
   "dependencies": {
     "express": "^4.21.2",
