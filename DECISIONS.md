@@ -43,3 +43,36 @@ EIP-712. Fazer agora viraria retrabalho.
 
 ## Sem LLM em nenhum ponto
 Determinístico é auditável e reproduzível. Um provedor pode conferir a conta.
+
+## O gate roda antes do middleware de pagamento
+Se rodasse depois, o agente rejeitado já teria pago. A ordem é o que sustenta
+a frase "refused before settlement: paid nothing". O gate não confere a
+assinatura sobre o campo `from` porque o middleware de pagamento a jusante
+confere: um `from` forjado nunca liquida.
+
+## O 403 devolve o atestado assinado inteiro
+A recusa é ela própria verificável. O agente rejeitado pode conferir a
+assinatura e ver por que foi barrado, sem precisar confiar na minha palavra.
+
+## Blockscout fora do ar devolve 503, fail-closed
+Se a fonte de dados cai, o vendedor não serve às cegas. A falha acontece
+antes da liquidação, então ninguém paga por um veredito que não existe.
+
+## unknown passa, só suspicious bloqueia
+Três vereditos, não dois. Os casos claros têm decline automático; o meio
+ambíguo é devolvido ao vendedor com o header X-KYA-Verdict, porque forçar uma
+decisão binária num caso ambíguo é pior que não decidir.
+
+## A UI não duplica nenhum limiar
+Cortes, pesos e a linha "suspicious <= 84 < unknown < 193 <= trusted" vêm do
+server via ?explain=1. Se o config.ts mudar, a tela acompanha. A interface é
+descartável; a API não é.
+
+## Fixtures são capturas datadas de endereços vivos
+Os três endereços da demo continuam transacionando. A fixture congela o que a
+demo mostra, e o arquivo carrega captured_at. Não é mock: é a resposta real
+da API, guardada com data. O modo online roda contra a chain e está no repo.
+
+## Sem fixture não há fallback silencioso
+Endereço sem fixture no modo offline devolve 404, não uma resposta inventada.
+Silêncio seria pior que erro.
