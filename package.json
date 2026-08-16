@@ -7,7 +7,9 @@
   "scripts": {
     "start": "tsx src/server.ts",
     "collect": "tsx scripts/collect.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "demo:endpoint": "tsx demo/paid-endpoint.ts",
+    "demo:agents": "tsx demo/agents.ts"
   },
   "dependencies": {
     "express": "^4.21.2",
