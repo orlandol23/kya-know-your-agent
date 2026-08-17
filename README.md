@@ -170,6 +170,12 @@ honours `?offline=1` per request, and the UI has an *offline* toggle, so the
 demo flips to fixtures without a restart. In offline mode an address without a
 fixture is a 404 (a 503 at the gate), never a silent fallback to stale data.
 
+The Blockscout Free tier allows 5 requests per second (and 100,000 credits a
+month at 20 per call, so roughly 700 verifies; the 10-minute cache stretches
+that). The client paces every call to at most 4 per second, process-wide, and
+treats 429 as "wait what `Retry-After` says", so two panels verifying at once
+queue for ~3 s instead of tripping the limit.
+
 Failure modes checked: zero-transaction address (suspicious, score 0), invalid
 address (400), Blockscout answering 500 (502 after one retry, ~1 s), Blockscout
 hanging (each call times out at 8 s; 2 attempts, so ~17 s before the 502). The

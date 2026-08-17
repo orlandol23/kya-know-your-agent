@@ -50,6 +50,20 @@ const BASE_BACKOFF_MS = 500
 const MAX_BACKOFF_MS = 8_000
 const REQUEST_TIMEOUT_MS = 8_000
 
+/*
+ * Blockscout Free tier (checked on the dashboard, 2026-08-16): 5 requests per
+ * second, 100,000 credits a month, 20 credits per call. One verify is 6 calls
+ * (7 when /counters is cold); the UI fires two panels at once, so 12 to 14
+ * requests hit the API together and the first demo run took a 429. Every call
+ * goes through acquireSlot() below: at most RATE_LIMIT_PER_SEC starts in any
+ * rolling second, process-wide, with one request of margin under the tier.
+ * Two panels now take ~3 s of pacing instead of a 429.
+ */
+const RATE_LIMIT_PER_SEC = 4
+const RATE_WINDOW_MS = 1_000
+/** A 429 is the API pacing us, not a failure: it gets its own small budget. */
+const MAX_RATE_LIMIT_RETRIES = 3
+
 const RETRIABLE_STATUS = new Set([408, 425, 429, 500, 502, 503, 504])
 
 export class BlockscoutError extends Error {
@@ -177,6 +191,33 @@ function backoffMs(attempt: number, retryAfter: string | null): number {
   return Math.min(exponential, MAX_BACKOFF_MS) + Math.floor(Math.random() * 250)
 }
 
+/** Start times of the requests in the current rolling window. */
+const recentStarts: number[] = []
+/** Serializes slot acquisition so concurrent callers cannot all see a free window. */
+let slotQueue: Promise<void> = Promise.resolve()
+
+/**
+ * Wait until fewer than RATE_LIMIT_PER_SEC requests started in the last second,
+ * then claim a start. Callers queue in order; nothing is dropped, only paced.
+ */
+function acquireSlot(): Promise<void> {
+  const mine = slotQueue.then(async () => {
+    for (;;) {
+      const now = Date.now()
+      while (recentStarts.length > 0 && now - (recentStarts[0] ?? now) >= RATE_WINDOW_MS) {
+        recentStarts.shift()
+      }
+      if (recentStarts.length < RATE_LIMIT_PER_SEC) {
+        recentStarts.push(now)
+        return
+      }
+      await sleep(RATE_WINDOW_MS - (now - (recentStarts[0] ?? now)) + 5)
+    }
+  })
+  slotQueue = mine.catch(() => undefined)
+  return mine
+}
+
 function withParams(url: URL, params: Record<string, string | number>): URL {
   for (const [key, value] of Object.entries(params)) {
     url.searchParams.set(key, String(value))
@@ -198,10 +239,11 @@ async function request<T>(url: URL, label: string): Promise<T> {
   // Sent as a header so the key never lands in a URL, a log line or an error.
   const apiKey = requireApiKey()
   let lastError = new BlockscoutError(`no request made for ${label}`)
-  let retryAfter: string | null = null
+  let attempt = 0
+  let rateLimitRetries = 0
 
-  for (let attempt = 0; attempt <= MAX_RETRIES; attempt += 1) {
-    if (attempt > 0) await sleep(backoffMs(attempt, retryAfter))
+  for (;;) {
+    await acquireSlot()
 
     let response: Response
     try {
@@ -210,9 +252,11 @@ async function request<T>(url: URL, label: string): Promise<T> {
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       })
     } catch (cause) {
-      // Network error, DNS failure or timeout: always worth another attempt.
+      // Network error, DNS failure or timeout: worth another attempt, within budget.
       lastError = new BlockscoutError(`${label} failed: ${(cause as Error).message}`)
-      retryAfter = null
+      attempt += 1
+      if (attempt > MAX_RETRIES) throw lastError
+      await sleep(backoffMs(attempt, null))
       continue
     }
 
@@ -227,16 +271,30 @@ async function request<T>(url: URL, label: string): Promise<T> {
       )
     }
 
-    const error = new BlockscoutError(
+    lastError = new BlockscoutError(
       `${label} returned ${response.status} ${response.statusText}`,
       response.status,
     )
-    if (!RETRIABLE_STATUS.has(response.status)) throw error
-    lastError = error
-    retryAfter = response.headers.get('retry-after')
-  }
+    if (!RETRIABLE_STATUS.has(response.status)) throw lastError
+    const retryAfter = response.headers.get('retry-after')
 
-  throw lastError
+    // Rate limited: the API is pacing us, not failing. Wait what it asks
+    // (Retry-After) or the backoff, on a budget separate from ordinary retries,
+    // and bounded so a stuck 429 still ends.
+    if (response.status === 429 && rateLimitRetries < MAX_RATE_LIMIT_RETRIES) {
+      rateLimitRetries += 1
+      console.warn(
+        `[blockscout] 429 on ${label}, retry ${rateLimitRetries}/${MAX_RATE_LIMIT_RETRIES}` +
+          (retryAfter ? ` after Retry-After ${retryAfter}s` : ''),
+      )
+      await sleep(backoffMs(rateLimitRetries, retryAfter))
+      continue
+    }
+
+    attempt += 1
+    if (attempt > MAX_RETRIES) throw lastError
+    await sleep(backoffMs(attempt, retryAfter))
+  }
 }
 
 function toNumber(value: string | null | undefined): number | null {
