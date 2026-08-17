@@ -37,10 +37,18 @@ export const WINDOW_MAX_TXS = WINDOW_PAGES * WINDOW_PAGE_SIZE
 /** How far into the oldest history to look for the first INBOUND transfer. */
 export const EARLIEST_LIMIT = 10
 
-const MAX_RETRIES = 3
+/*
+ * Retry budget sized for a LIVE demo, not for a batch job. Two attempts of 8 s
+ * put the worst case (Blockscout hanging on every call) at about 17 s, against
+ * ~65 s with the previous 4 x 15 s. A minute of frozen screen is a sixth of a
+ * ten-minute pitch; the answer to a longer outage is --offline, not patience.
+ * scripts/collect.ts and scripts/capture.ts share this budget and can simply
+ * be re-run.
+ */
+const MAX_RETRIES = 1
 const BASE_BACKOFF_MS = 500
 const MAX_BACKOFF_MS = 8_000
-const REQUEST_TIMEOUT_MS = 15_000
+const REQUEST_TIMEOUT_MS = 8_000
 
 const RETRIABLE_STATUS = new Set([408, 425, 429, 500, 502, 503, 504])
 
