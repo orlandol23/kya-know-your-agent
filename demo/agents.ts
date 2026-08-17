@@ -3,7 +3,7 @@
  *
  * The buyer side of the demo: two agents, one paid endpoint, same request.
  *
- *   established   0x2CfF890f…2680   648 days, 631k tx, exchange-funded   -> expects 200
+ *   established   0xeA258496…9F04   657 days, 49k tx, exchange-funded    -> expects 200
  *   fresh         generated now, zero history by construction           -> expects 403
  *
  * The 403 arrives BEFORE settlement: the fresh agent signs a payment, the gate
@@ -50,8 +50,11 @@ const REAL = process.argv.includes('--real')
 const OFFLINE = process.argv.includes('--offline')
 const NETWORK = 'base-sepolia'
 
-/** From the calibration set: exchange-funded, sustained use since 2024. TRUSTED, score 857. */
-const ESTABLISHED_ADDRESS: Address = '0x2CfF890f0378a11913B6129B2E97417a2c302680'
+/**
+ * From the calibration set: funded by Binance 76, sustained use since 2024.
+ * Same funder as the fresh demo address, which is the point of the pairing.
+ */
+const ESTABLISHED_ADDRESS: Address = '0xeA258496a9311Ffe29CDf920Ca0E8BB4B41c9F04'
 /** From the calibration set: generated locally, key discarded, zero history. Has a fixture. */
 const FRESH_FIXTURE_ADDRESS: Address = '0xeB94Dd34439e017EBa695678265e44Ea12E16B97'
 

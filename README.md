@@ -115,7 +115,7 @@ fails closed with 503, still before settlement.
     cp .env.example .env    # Blockscout Pro key + throwaway attester key
     npm i
     npx tsx src/cli.ts 0xYourAddress                     # verdict, score, why, signature
-    npx tsx src/cli.ts --offline 0x2CfF890f0378a11913B6129B2E97417a2c302680   # no network, no key (see Offline mode)
+    npx tsx src/cli.ts --offline 0xeA258496a9311Ffe29CDf920Ca0E8BB4B41c9F04   # no network, no key (see Offline mode)
     npx tsx src/server.ts                                # GET /verify + the demo UI at /
     curl "localhost:3000/verify?address=0xYourAddress"
     open http://localhost:3000/                          # two agents side by side

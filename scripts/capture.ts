@@ -27,7 +27,7 @@ loadDotEnv()
 
 /** The three cases of the pitch plus the zero-history edge case. */
 const DEMO_ADDRESSES = [
-  '0x2CfF890f0378a11913B6129B2E97417a2c302680', // established, exchange-funded, TRUSTED
+  '0xeA258496a9311Ffe29CDf920Ca0E8BB4B41c9F04', // established, exchange-funded, TRUSTED
   '0xBEabA203Ef49Ee2828b77b0B7E84839e76092787', // fresh, exchange-funded, days old, SUSPICIOUS
   '0x098b716b8aaf21512996dc57eb0615e2383e2f96', // OFAC SDN (Lazarus Group), GATED
   '0xeB94Dd34439e017EBa695678265e44Ea12E16B97', // generated locally, zero transactions, SUSPICIOUS 0

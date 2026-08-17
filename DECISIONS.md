@@ -121,6 +121,31 @@ pode estar errada. E um hit prova a identidade do ENDEREÇO, não que o pagador
 seja dono da conta na exchange. Qualquer um pode receber uma transferência não
 solicitada.
 
+## O endereço established da demo foi trocado após auditoria de tags
+O `0x2CfF890f0378a11913B6129B2E97417a2c302680` saiu da demo. Auditoria de
+terceiros na Blockscout: tags `Fake_Phishing3515158` e `NEAR Intents: Treasury`,
+risk score 75.5 do DD.xyz, com flags de FLAGGED ADDRESS e WASH TRADER. Mostrar
+TRUSTED 857 nesse endereço ao vivo seria indefensável.
+
+O substituto é `0xeA258496a9311Ffe29CDf920Ca0E8BB4B41c9F04`: sem tags, risk score
+21.2 sem alerta, 49.577 transações, 659 dias. O motivo principal não é nenhum
+desses: é que ele é financiado pelo MESMO Binance 76 que financia o endereço
+fresh da demo. O argumento da demo depende disso. Mesmo funder confirmado, mesma
+classe de funding, e mesmo assim TRUSTED 857 contra SUSPICIOUS 60. A diferença
+está inteira em idade e volume, que é exatamente o que o score deveria medir.
+
+O `0x2CfF` PERMANECE em `data/addresses.csv` e `data/signals.csv`. A calibração é
+sobre comportamento observável, não sobre reputação externa, e tirar um endereço
+do conjunto de referência porque uma fonte de terceiros não gostou dele seria
+selecionar a amostra pelo resultado. É o mesmo erro que a decisão sobre não
+recompor o estrato já recusa. Os limiares continuam calibrados sobre os 30.
+
+A ressalva honesta: o KYA continuaria dando 857 no `0x2CfF` hoje. A troca muda o
+que a demo MOSTRA, não o que o score diz. O score lê histórico on-chain, e
+histórico on-chain não vê tag de phishing nem risk score de terceiros. Isso é um
+limite real da v0.1, não um detalhe de apresentação, e a lista de sanções do OFAC
+é o único sinal de reputação externa que o gate consome hoje.
+
 ## D17: o sinal de contraparte foi avaliado e adiado
 A ideia era um quarto eixo: com quantas contrapartes distintas o endereço
 interagiu, medido contra a popularidade real dos contratos na chain. A fonte
