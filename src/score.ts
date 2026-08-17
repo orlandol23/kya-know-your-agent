@@ -152,7 +152,12 @@ export function scoreAddress(signals: ScoreInput, funding: FundingProvenance): S
   const reasons: string[] = []
 
   if (funding.class === 'exchange') {
-    reasons.push(`funded by an exchange-class wallet (${funding.source})`)
+    // Same class, same weight, same score either way. Only the claim differs.
+    reasons.push(
+      funding.identity === 'confirmed'
+        ? `funded by ${funding.funderLabel} (${funding.source}), identity confirmed against ${funding.labelSource}`
+        : `funded by an exchange-class wallet (${funding.source}), identity inferred from behaviour and not confirmed against any label set`,
+    )
   } else if (funding.class === 'none') {
     reasons.push('no inbound transfer ever: nothing funded this wallet')
   } else {

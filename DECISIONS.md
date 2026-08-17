@@ -76,3 +76,62 @@ da API, guardada com data. O modo online roda contra a chain e está no repo.
 ## Sem fixture não há fallback silencioso
 Endereço sem fixture no modo offline devolve 404, não uma resposta inventada.
 Silêncio seria pior que erro.
+
+## Os labels de CEX vêm do Dune Spellbook, em commit pinado
+A heurística de exchange (EOA com mais de 1M de transações na Base que financiou
+pelo menos 3 das 74 wallets amostradas) sempre teve o mesmo buraco: ela mede
+escala custodial, não identidade. Agora existe fonte. O modelo `cex_evms.addresses`
+do Dune Spellbook, no commit `9f61b0d` de 28/01/2026, com 4.957 endereços e 328
+exchanges, está commitado em `data/cex-addresses-evm.json`. O bloco `meta` do
+arquivo carrega commit, URL raw, sha256 do SQL de origem, licença e data, e
+`scripts/build-cex-labels.ts` reconstrói o arquivo byte a byte a partir do commit
+pinado. Reprodutível, não confiado na minha palavra.
+
+O `lookupCex` roda ANTES da heurística e devolve identity `confirmed`; o miss cai
+na heurística de sempre, com identity `inferred`. A CLASSE é `exchange` nos dois
+caminhos. Isso é deliberado: o score lê `class` e nada mais, então a fonte melhora
+o que o KYA pode AFIRMAR sobre um financiador, nunca o quanto ele conta.
+
+O que a medição realmente deu, sobre os 30 endereços de `addresses.csv`:
+
+  - 4 de 30 endereços dão hit, e os quatro pelo MESMO financiador,
+    `0x3304e22ddaa22bcdc5fca2269b418046ae7b566a` = Binance 76. São
+    0xBEabA203, 0x0B53cc25, 0xeA258496 e 0x2CfF890f.
+  - São 24 financiadores distintos no conjunto. Exatamente 1 está na lista.
+  - Das 3 wallets que a heurística classificava como exchange, 2 foram
+    confirmadas pelo Dune: Binance 76 e Bybit 6. A terceira, `0x8581784d`,
+    não está em nenhuma lista que eu tenha achado e continua `inferred`.
+    Ela não foi refutada, só não foi nomeada.
+  - 0 classes mudaram e 0 scores mudaram nos 30. Verificado ponta a ponta
+    contra a coluna `funding_class` de `data/signals.csv`, que é a saída do
+    código antigo, commitada antes da lista existir.
+
+Isso é cobertura estreita e não deve ser citado como outra coisa. 1 financiador
+em 24 não amplia o alcance do sinal: confirma a identidade de uma wallet que já
+importava para a demo, e substitui uma inferência comportamental por um nome com
+fonte citável. O ganho é de qualidade da afirmação, não de recall.
+
+Ressalva de licença: os dados são Business Source License 1.1, licenciante Dune
+Analytics AS, Change Date 2027-03-03, quando viram GPLv3+. Serve para demo e
+avaliação. Ler a licença antes de qualquer uso em produção.
+
+Ressalva de fonte: a lista é curada pela comunidade e está congelada em janeiro
+de 2026. É a melhor fonte disponível, não um oráculo: pode estar desatualizada e
+pode estar errada. E um hit prova a identidade do ENDEREÇO, não que o pagador
+seja dono da conta na exchange. Qualquer um pode receber uma transferência não
+solicitada.
+
+## D17: o sinal de contraparte foi avaliado e adiado
+A ideia era um quarto eixo: com quantas contrapartes distintas o endereço
+interagiu, medido contra a popularidade real dos contratos na chain. A fonte
+candidata era `/stats/hot-smart-contracts` da Blockscout Pro. Medido em 17/08:
+devolveu 524 (timeout de origem) na janela de 30 dias e timeout de cliente na de
+1 dia. A Blockscout não expõe nenhuma métrica de distinct-callers.
+
+Sem fonte que responda, o eixo só poderia ser preenchido com a diversidade que já
+foi medida e descartada na calibração, que conta transações de ENTRADA e que
+qualquer um pode inflar spammando o endereço. Seria um número na tela sem nada
+por trás.
+
+Três eixos com fonte citada valem mais que quatro com um mal medido. Adiado, não
+descartado: volta quando existir uma fonte que responda.

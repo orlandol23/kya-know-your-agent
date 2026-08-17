@@ -13,9 +13,21 @@
  */
 
 import type { AddressHistory } from './blockscout.js'
+import { lookupCex } from './cex-labels.js'
 import { OFAC_SANCTIONED } from './sanctions.js'
 
 export type FundingClass = 'exchange' | 'mixer' | 'sanctioned' | 'unknown' | 'none'
+
+/**
+ * How well the funder is known, which is NOT the same question as what it is.
+ *
+ *   confirmed  exact match against a named, pinned, citable list
+ *   inferred   matched only the behavioural heuristic below: custodial-scale,
+ *              but nobody has said whose
+ *
+ * This never moves the class, so it never moves the score. See classifyFunder.
+ */
+export type FunderIdentity = 'confirmed' | 'inferred'
 
 export type FundingProvenance = {
   class: FundingClass
@@ -23,12 +35,19 @@ export type FundingProvenance = {
   source: string | null
   /** What matched in a list, for showing a blocked payer why. */
   label: string | null
+  /** Quality of the exchange identity. Null outside the exchange path. */
+  identity: FunderIdentity | null
+  /** The exchange's own name for the funder, e.g. "Binance 76". Confirmed hits only. */
+  funderLabel: string | null
+  /** Where that name came from, e.g. "dune-spellbook@9f61b0d". Confirmed hits only. */
+  labelSource: string | null
   firstInboundAt: string | null
   via: 'native' | 'token' | null
 }
 
 /**
- * Exchange-class hot wallets on Base.
+ * Exchange-class hot wallets on Base. The FALLBACK path, now that there is a
+ * named list in front of it (see cex-labels.ts).
  *
  * NOT a labelled exchange list, and the difference matters. Blockscout exposes
  * no exchange labels for Base: checked on 2026-08-15 against chain 8453 and
@@ -39,11 +58,15 @@ export type FundingProvenance = {
  * So these were derived behaviourally from the D2 harvest, by a rule fixed
  * before looking at the result: an EOA with more than 1M transactions on Base
  * that was the first inbound source for at least 3 of the 74 sampled wallets.
- * Custodial-scale by behaviour. IDENTITY UNCONFIRMED: none of them is proven to
- * belong to a named exchange, and the score treats the class, not the name.
+ * Custodial-scale by behaviour, identity unconfirmed by construction.
  *
- * Counters read 2026-08-16. Naming them needs an external label set, which is
- * the same dependency the plan already parks in the roadmap.
+ * Kept after adding the Dune Spellbook list, for two reasons. It covers what the
+ * list misses (0x8581... funds a wallet in the reference set and is in no list I
+ * have found), and scoring the heuristic against the list is the only evidence I
+ * have that it works: checked 2026-08-17, 2 of these 3 are in the pinned list,
+ * as Binance 76 and Bybit 6. The third is not refuted, only unnamed.
+ *
+ * Counters read 2026-08-16.
  */
 const EXCHANGE_CLASS: ReadonlyMap<string, string> = new Map([
   [
@@ -91,20 +114,57 @@ export function sanctionEntryFor(address: string): string | null {
   return OFAC_SANCTIONED.get(address.toLowerCase()) ?? null
 }
 
-/** Severity order: a sanctioned exchange wallet is sanctioned first. */
-export function classifyFunder(funder: string): { class: FundingClass; label: string | null } {
+/** What classifyFunder decides, before the timestamps get attached. */
+type FunderClassification = Pick<
+  FundingProvenance,
+  'class' | 'label' | 'identity' | 'funderLabel' | 'labelSource'
+>
+
+const UNCLASSIFIED: FunderClassification = {
+  class: 'unknown',
+  label: null,
+  identity: null,
+  funderLabel: null,
+  labelSource: null,
+}
+
+/**
+ * Severity order: a sanctioned exchange wallet is sanctioned first.
+ *
+ * Within the exchange path, the named list is checked BEFORE the behavioural
+ * heuristic, and both return the same class. That is the point: the list changes
+ * what KYA can honestly SAY about a funder, never what KYA counts. The score
+ * reads `class`, and `class` is 'exchange' either way, so adding the list moved
+ * no score in the reference set. Measured, not assumed: see DECISIONS.md.
+ */
+export function classifyFunder(funder: string): FunderClassification {
   const key = funder.toLowerCase()
 
   const sanctioned = OFAC_SANCTIONED.get(key)
-  if (sanctioned !== undefined) return { class: 'sanctioned', label: `OFAC SDN: ${sanctioned}` }
+  if (sanctioned !== undefined) {
+    return { ...UNCLASSIFIED, class: 'sanctioned', label: `OFAC SDN: ${sanctioned}` }
+  }
 
   const mixer = KNOWN_MIXERS.get(key)
-  if (mixer !== undefined) return { class: 'mixer', label: mixer }
+  if (mixer !== undefined) return { ...UNCLASSIFIED, class: 'mixer', label: mixer }
+
+  const cex = lookupCex(key)
+  if (cex !== null) {
+    return {
+      class: 'exchange',
+      label: `${cex.cex} (${cex.name}), identity confirmed against ${cex.source}`,
+      identity: cex.identity,
+      funderLabel: cex.name,
+      labelSource: cex.source,
+    }
+  }
 
   const exchange = EXCHANGE_CLASS.get(key)
-  if (exchange !== undefined) return { class: 'exchange', label: exchange }
+  if (exchange !== undefined) {
+    return { ...UNCLASSIFIED, class: 'exchange', label: exchange, identity: 'inferred' }
+  }
 
-  return { class: 'unknown', label: null }
+  return UNCLASSIFIED
 }
 
 type Inbound = { from: string; timestampMs: number; via: 'native' | 'token' }
@@ -148,14 +208,18 @@ export function deriveFunding(history: AddressHistory): FundingProvenance {
   const first = native ?? token
 
   if (first === null) {
-    return { class: 'none', source: null, label: null, firstInboundAt: null, via: null }
+    return {
+      ...UNCLASSIFIED,
+      class: 'none',
+      source: null,
+      firstInboundAt: null,
+      via: null,
+    }
   }
 
-  const { class: fundingClass, label } = classifyFunder(first.from)
   return {
-    class: fundingClass,
+    ...classifyFunder(first.from),
     source: first.from,
-    label,
     firstInboundAt: new Date(first.timestampMs).toISOString(),
     via: first.via,
   }

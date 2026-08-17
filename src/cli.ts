@@ -86,7 +86,18 @@ function print({ signals, funding, breakdown, verdict, attestation, source, capt
           (funding.via === null ? '' : `   via ${funding.via}, ${funding.firstInboundAt}`),
     ),
   )
-  if (funding.label !== null) console.log(line('    ', funding.label))
+  if (funding.identity !== null) {
+    console.log(
+      line(
+        '    ',
+        funding.identity === 'confirmed'
+          ? `identity CONFIRMED   ${funding.funderLabel}   source ${funding.labelSource}`
+          : `identity INFERRED    ${funding.label}`,
+      ),
+    )
+  } else if (funding.label !== null) {
+    console.log(line('    ', funding.label))
+  }
   console.log('')
 
   console.log('  collected, not scored')

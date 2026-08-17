@@ -289,7 +289,16 @@
       el('span', { class: 'k', text: 'Blockscout' }), el('a', { href: e.blockscout_url, target: '_blank', rel: 'noopener', text: `${e.blockscout_url.replace(/^https?:\/\//, '').replace(a.address, short(a.address))} ↗` }),
       el('span', { class: 'k', text: 'window' }), el('span', { text: `last ${e.window.size} of ≤ ${e.window.max} transactions${e.window.capped ? ' (capped)' : ''} · chain ${e.chain_id} · fetched ${e.fetched_at.replace('T', ' ').slice(0, 19)} UTC` }),
       el('span', { class: 'k', text: 'funder' }), el('span', {}, s.funding.source
-        ? el('span', {}, el('code', { text: s.funding.source }), ` via ${s.funding.via}${s.funding.first_inbound_at ? `, ${day(s.funding.first_inbound_at)}` : ''}${s.funding.label ? ` · ${s.funding.label}` : ''}`)
+        ? el('span', {},
+            el('code', { text: s.funding.source }),
+            ` via ${s.funding.via}${s.funding.first_inbound_at ? `, ${day(s.funding.first_inbound_at)}` : ''}`,
+            // label_source non-null = exact match against a named, pinned list.
+            // Null on an exchange funder = the behavioural heuristic fired and
+            // nobody has named the wallet. The class, and so the score, is the
+            // same either way; only the strength of the claim differs.
+            s.funding.label_source
+              ? el('span', {}, ' · ', el('b', { text: s.funding.funder_label }), ` · identity confirmed · ${s.funding.label_source}`)
+              : s.funding.label ? ` · ${s.funding.label}${s.funding.class === 'exchange' ? ' · identity inferred, not confirmed' : ''}` : '')
         : 'no inbound transfer ever'),
       el('span', { class: 'k', text: 'attester' }), el('code', { text: a.attester }),
       el('span', { class: 'k', text: 'signature' }), el('span', {}, el('code', { text: `${a.signature.slice(0, 26)}…` }), ` EIP-191, issued ${a.issued_at.replace('T', ' ').slice(0, 19)} UTC`),

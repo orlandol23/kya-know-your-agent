@@ -41,6 +41,20 @@ export type AttestedFunding = {
   via: 'native' | 'token' | null
   first_inbound_at: string | null
   label: string | null
+  /**
+   * The exchange's own name for the funder, e.g. "Binance 76". Null when the
+   * funder matched no named list.
+   */
+  funder_label: string | null
+  /**
+   * Where that name came from, e.g. "dune-spellbook@9f61b0d". This is the field
+   * that separates a CONFIRMED identity from an INFERRED one: non-null means an
+   * exact match against a named, pinned list; null on an exchange-class funder
+   * means the behavioural heuristic fired and nobody has named the wallet.
+   *
+   * It does not change `class`, and `class` is what the score reads.
+   */
+  label_source: string | null
 }
 
 export type AttestedSignals = {
@@ -151,6 +165,8 @@ export function buildAttestationBody(
         via: funding.via,
         first_inbound_at: funding.firstInboundAt,
         label: funding.label,
+        funder_label: funding.funderLabel,
+        label_source: funding.labelSource,
       },
     },
     evidence: {

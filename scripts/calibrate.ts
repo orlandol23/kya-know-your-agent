@@ -49,10 +49,15 @@ function summarize(values: number[]): Stats {
 
 /** Rebuild just enough of a scored address from one CSV row. */
 function scoreRow(row: CsvRow): number {
+  // identity, funderLabel and labelSource are omitted on purpose: they are the
+  // quality of the funder's NAME, and the score reads only its class.
   const funding: FundingProvenance = {
     class: (row.funding_class || 'unknown') as FundingClass,
     source: row.funding_source || null,
     label: null,
+    identity: null,
+    funderLabel: null,
+    labelSource: null,
     firstInboundAt: null,
     via: null,
   }
