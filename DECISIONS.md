@@ -160,3 +160,51 @@ por trás.
 
 Três eixos com fonte citada valem mais que quatro com um mal medido. Adiado, não
 descartado: volta quando existir uma fonte que responda.
+## D18: checagem de fatos externos, 18/08/2026
+O pitch foi para checagem de fatos e três afirmações sobre o mundo externo
+estavam erradas ou imprecisas. Nada aqui toca medição minha: limiares, scores,
+calibração, os 30 endereços e as fixtures seguem como estavam. O que muda é o
+que o repositório AFIRMA sobre coisas que não são minhas.
+
+**Os números do x402 são janela, não cumulativo.** Os "7M+ transactions" que o
+README citava vêm do x402scan e são uma JANELA MÓVEL DE 30 DIAS. O cumulativo do
+protocolo passa de 100 milhões de transações (Chainalysis, Coinbase,
+agenteconomy.to), com ticket médio sub-dólar. Toda menção precisa rotular a
+janela: citar 7M como total do protocolo subestima o mercado em mais de uma
+ordem de grandeza, e citar sem rótulo é impreciso nos dois sentidos.
+
+**x402 não é mais "o protocolo da Coinbase".** Em 14/07/2026 a Linux Foundation
+anunciou o lançamento operacional da x402 Foundation, com a Coinbase
+contribuindo o protocolo por completo. São 40 organizações, incluindo Visa,
+Mastercard, Stripe, Google, AWS, American Express, Circle, Cloudflare e Shopify.
+Chamar de protocolo da Coinbase numa banca é datado, e desperdiça o argumento:
+governança neutra com esse conjunto de participantes é sinal de que o problema
+do comprador vale a pena resolver.
+
+**O x402scan não é o explorador oficial do x402.** É da Merit Systems, open
+source. É o explorador principal do ecossistema, não o oficial, e é assim que
+deve ser dito. O que sustenta o KYA continua de pé, e é o ponto que importa: ele
+é construído em torno de vendedores, origens e recursos; não existe perfil de
+comprador nem endpoint público para consultar um.
+
+**Denylist de mixer é escolha de política, não exigência do OFAC.** O Tornado
+Cash saiu da lista SDN em março de 2025. Tratar "OFAC SDN e mixers conhecidos"
+como uma categoria só de obrigação é errado: a SDN é exigência legal, a denylist
+de mixer é escolha de política deste projeto. O código já trata as duas como
+listas separadas; era só o texto que conflava.
+
+**Existe reputação por histórico no x402 além do KYA.** AgentQuay, DJD
+AgentScore, ACHIVX, AgentKarma e Agent402. Todos pontuam HISTÓRICO DE PAGAMENTO
+X402, e isso significa cold start para carteira antiga que nunca usou x402: para
+eles, um endereço com 659 dias e 49.577 transações na Base começa do zero se o
+x402 for novidade para ele. O KYA pontua histórico geral da Base. Essa é a
+diferença, e não é afirmação de superioridade: é escolha de fonte, com o custo
+simétrico de não medir nada específico de x402.
+
+**O Reputation Registry do ERC-8004, medido como implantado, não está saudável.**
+Um preprint de 2026 mediu o registry em produção: o feedback raramente está
+ancorado numa interação verificável, e mais de 90% dos revisores na Base
+apresentam comportamento sybil coordenado. É PREPRINT, e fica registrado como
+tal: não é revisado por pares e não deve ser citado como se fosse. Se sustentar,
+é o argumento mais forte a favor de reputação derivada de histórico on-chain em
+vez de reputação declarada por pares.

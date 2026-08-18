@@ -248,8 +248,10 @@ SANCIONADOS   ⭐ fonte autoritativa. Lista SDN do OFAC, publicação de 07/08/2
               endereço do Lazarus Group.
 MIXERS        3 contratos do Tornado Cash, verificados lendo o Blockscout na
               chain 1. Ressalva declarada: não estão deployados na Base, então
-              o ramo não dispara lá hoje. Lista separada da SDN porque o
-              Tornado foi deslistado (o co-fundador continua listado).
+              o ramo não dispara lá hoje. Lista separada da SDN, e não é a
+              mesma categoria de obrigação: a SDN é exigência legal, esta
+              denylist é escolha de política do projeto. O Tornado saiu da
+              lista SDN em março de 2025 (o co-fundador continua listado).
 CEX           ⭐ fonte adotada: Dune Spellbook, modelo cex_evms.addresses, no
               commit pinado 9f61b0d de 28/01/2026, com 4.957 endereços e 328
               exchanges, commitado em data/cex-addresses-evm.json com sha256 e
@@ -395,10 +397,14 @@ Escrito em inglês, para leitura em 60 segundos.
 
 **On-chain reputation for AI agents that pay through x402.**
 
-AI agents already buy services with stablecoins over x402 (7M+ transactions as
-of Aug 2026). The seller sees a valid payment and nothing else: no history, no
-way to tell an established agent from a wallet created five minutes ago. Even
-x402's own explorer only indexes the seller side.
+AI agents already buy services with stablecoins over x402: 7M+ transactions in
+a rolling 30-day window (x402scan, Aug 2026), and over 100M cumulative for the
+protocol (Chainalysis, Coinbase, agenteconomy.to), at a sub-dollar average
+ticket. The seller sees a valid payment and nothing else: no history, no way to
+tell an established agent from a wallet created five minutes ago. And x402scan
+— the ecosystem's main explorer, built by Merit Systems and open source, not an
+official x402 project — is built around sellers, origins and resources: there is
+no buyer profile and no public endpoint to query one.
 
 KYA answers the missing question: **who is this agent, and what has it done?**
 
@@ -577,8 +583,8 @@ PREDICTION MARKETS   o insider da Google criou wallet fresca, apostou US$200K
              por chamada via x402. Agentes pagam um centavo e recebem a resposta.
              Chega um pagamento válido de uma wallet criada hoje, financiada por
              um mixer. Você não tem como saber. Você serve."
-            + a evidência: "o explorador oficial do x402 indexa só o vendedor;
-              não existe como olhar o comprador"
+            + a evidência: "o x402scan, o principal explorador do ecossistema,
+              indexa só o vendedor; não existe como olhar o comprador"
             alvo: Yuri e os olheiros
 
 1:30-5:30   DEMO AO VIVO, do ponto de vista do VENDEDOR

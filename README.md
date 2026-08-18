@@ -2,10 +2,14 @@
 
 **On-chain reputation for AI agents that pay through x402.**
 
-AI agents already buy services with stablecoins over x402 (7M+ transactions as
-of Aug 2026). The seller sees a valid payment and nothing else: no history, no
-way to tell an established agent from a wallet created five minutes ago. Even
-x402's own explorer only indexes the seller side.
+AI agents already buy services with stablecoins over x402: 7M+ transactions in
+a rolling 30-day window (x402scan, Aug 2026), and over 100M cumulative for the
+protocol (Chainalysis, Coinbase, agenteconomy.to), at a sub-dollar average
+ticket. The seller sees a valid payment and nothing else: no history, no way to
+tell an established agent from a wallet created five minutes ago. And x402scan
+— the ecosystem's main explorer, built by Merit Systems and open source, not an
+official x402 project — is built around sellers, origins and resources: there is
+no buyer profile and no public endpoint to query one.
 
 KYA answers the missing question: **who is this agent, and what has it done?**
 
@@ -19,7 +23,7 @@ Returns a signed attestation:
 {
   "address":   "0xeA258496a9311Ffe29CDf920Ca0E8BB4B41c9F04",
   "verdict":   "trusted",              // trusted | unknown | suspicious
-  "gated":     false,                  // compliance gate (OFAC SDN, known mixers): "not allowed", not "no history"
+  "gated":     false,                  // compliance gate (OFAC SDN + this project's mixer denylist): "not allowed", not "no history"
   "score":     857,                    // 0..1000
   "summary":   "established track record: score 857 at or above 193",
   "reasons":   ["funded by Binance 76 (0x3304e22d...7b566a), identity confirmed against dune-spellbook@9f61b0d", "..."],
@@ -109,9 +113,12 @@ X-KYA-Verdict: suspicious
   "attestation": { "...": "the signed attestation above" } }
 ```
 
-`gated: true` means the compliance gate fired (OFAC SDN, known mixers): the
-address was not scored, it was blocked. If reputation cannot be read the gate
-fails closed with 503, still before settlement.
+`gated: true` means the compliance gate fired: the address was not scored, it
+was blocked. Two lists feed it, and they are not the same kind of obligation.
+The OFAC SDN list is a legal requirement. The mixer denylist is this project's
+own policy choice — Tornado Cash left the SDN list in March 2025, so no
+sanctions regime obliges it. If reputation cannot be read the gate fails closed
+with 503, still before settlement.
 
 ## Try it
 
