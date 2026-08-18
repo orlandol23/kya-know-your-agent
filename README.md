@@ -17,30 +17,33 @@ Returns a signed attestation:
 
 ```jsonc
 {
-  "address":   "0xf7256eD518fa3A8b1dDb2bBb0Cd0071617df7bF4",
+  "address":   "0xeA258496a9311Ffe29CDf920Ca0E8BB4B41c9F04",
   "verdict":   "trusted",              // trusted | unknown | suspicious
   "gated":     false,                  // compliance gate (OFAC SDN, known mixers): "not allowed", not "no history"
-  "score":     354,                    // 0..1000
-  "summary":   "established track record: score 354 at or above 193",
-  "reasons":   ["1129 days old (full credit at 532.09, none below 3.03)", "..."],
-  "signals":   { "age_days": 1128.76, "tx_count": 710, "distinct_counterparties": 56,
-                 "txs_24h": 0, "txs_7d": 5, "burst_ratio": 173.67,
-                 "funding": { "class": "unknown", "source": "0x921e...1fef", "via": "token", "..." : "..." },
+  "score":     857,                    // 0..1000
+  "summary":   "established track record: score 857 at or above 193",
+  "reasons":   ["funded by Binance 76 (0x3304e22d...7b566a), identity confirmed against dune-spellbook@9f61b0d", "..."],
+  "signals":   { "age_days": 659, "tx_count": 49577, "distinct_counterparties": 2,
+                 "txs_24h": 150, "txs_7d": 150, "burst_ratio": 6.08,
+                 "funding": { "class": "exchange", "source": "0x3304e22d...7b566a", "via": "native",
+                              "funder_label": "Binance 76", "label_source": "dune-spellbook@9f61b0d", "..." : "..." },
                  "...": "..." },
   "evidence":  { "chain_id": 8453,
-                 "blockscout_url": "https://base.blockscout.com/address/0xf725...7bF4",
+                 "blockscout_url": "https://base.blockscout.com/address/0xeA25...9F04",
                  "window": { "size": 150, "max": 150, "capped": true },
-                 "fetched_at": "2026-08-16T11:10:48.592Z" },
+                 "fetched_at": "2026-08-17T19:02:24.264Z" },
   "attester":  "0xCEFEDCf160e8065ce82B949A0dFc777BD2E2Cd8C",
-  "issued_at": "2026-08-16T11:10:48.594Z",
-  "signature": "0xb3716c5c...222b1b"   // EIP-191 over everything above
+  "issued_at": "2026-08-17T19:10:07.576Z",
+  "signature": "0x80b15b6b...b1d82c1c"   // EIP-191 over everything above
 }
 ```
 
-- **Deterministic.** Signals from the agent's Base history: age, volume,
-  counterparty diversity, recent cadence, and funding provenance. Combined
-  with a weighted geometric mean, so a weak axis cannot be compensated by a
-  strong one. No LLM anywhere in the pipeline.
+- **Deterministic.** Three scored axes from the agent's Base history: age,
+  volume, and funding provenance. Combined with a weighted geometric mean, so a
+  weak axis cannot be compensated by a strong one. Counterparty diversity and
+  recent cadence are also read from the chain and shown, but carry weight zero;
+  cadence enters the score only as a burst penalty. No LLM anywhere in the
+  pipeline.
 - **Calibrated, not invented.** Thresholds are derived from a labeled reference
   set of 30 real addresses. `scripts/calibrate.ts` reproduces every number.
   Two of the five signals (diversity, cadence) did not separate the set and
@@ -149,12 +152,12 @@ Blockscout answered 500 for 23 of 30 addresses seven days before the pitch, so
 the demo does not depend on it being up:
 
     npx tsx scripts/capture.ts                 # reads Blockscout NOW, writes data/fixtures/<address>.json
-    npx tsx src/cli.ts --offline 0x2CfF...     # replays the fixture, no network, no Blockscout key
+    npx tsx src/cli.ts --offline 0xeA25...     # replays the fixture, no network, no Blockscout key
     npx tsx src/server.ts --offline            # every request replays data/fixtures/
     npx tsx demo/paid-endpoint.ts --offline    # the gate replays too (pair with demo/agents.ts --offline)
 
 `data/fixtures/` holds four committed captures: the three demo cases (established
-`0x2CfF…2680`, fresh exchange-funded `0xBEab…2787`, OFAC-listed `0x098b…2f96`)
+`0xeA25…9F04`, fresh exchange-funded `0xBEab…2787`, OFAC-listed `0x098b…2f96`)
 and one address with zero transactions (`0xeB94…6B97`, generated locally, key
 discarded). **They are not synthetic cases.** Each file is what Blockscout
 returned for a live address at the instant in its `captured_at`; the addresses

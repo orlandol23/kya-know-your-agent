@@ -32,7 +32,7 @@ kya/
 │   ├── config.ts           env + limiares calibrados, com a tabela de percentis em comentário
 │   ├── blockscout.ts       as 3 chamadas limitadas + retry/backoff + tipos da resposta
 │   ├── signals.ts          txs -> { age, volume, diversity, cadence }
-│   ├── score.ts            sinais -> 0..100, linear por sinal com clamp
+│   ├── score.ts            sinais -> 0..1000, média geométrica ponderada × penalidade × confidence
 │   ├── verdict.ts          score -> trusted | unknown | suspicious
 │   ├── attest.ts           serialização canônica + assinatura EIP-191 (viem)
 │   ├── verify.ts           pipeline address -> attestation (CLI, server e gate usam este)
@@ -250,12 +250,25 @@ MIXERS        3 contratos do Tornado Cash, verificados lendo o Blockscout na
               chain 1. Ressalva declarada: não estão deployados na Base, então
               o ramo não dispara lá hoje. Lista separada da SDN porque o
               Tornado foi deslistado (o co-fundador continua listado).
-CEX           ⚠️ comportamental, IDENTIDADE NÃO CONFIRMADA. Não existe fonte de
-              label de CEX para a Base: Blockscout devolve name null, eth-labels
-              é scraper sem dataset. Derivado do harvest do D2 por regra fixada
-              ANTES de ver o resultado: EOA com mais de 1M de transações na Base
-              que foi primeiro inbound de pelo menos 3 das 74 amostradas.
-              Três endereços, marcados no código como IDENTITY UNCONFIRMED.
+CEX           ⭐ fonte adotada: Dune Spellbook, modelo cex_evms.addresses, no
+              commit pinado 9f61b0d de 28/01/2026, com 4.957 endereços e 328
+              exchanges, commitado em data/cex-addresses-evm.json com sha256 e
+              licença no bloco meta. O lookupCex roda ANTES da heurística e dá
+              identity "confirmed"; o miss cai na heurística e dá "inferred".
+              A CLASSE é exchange nos dois caminhos, então nenhum score mudou:
+              0 classes e 0 scores mudaram nos 30, verificado contra o
+              funding_class commitado no signals.csv.
+
+              A medição real, e não citar cobertura maior que esta: 4 de 30
+              endereços dão hit, os quatro pelo MESMO financiador
+              0x3304e22d… = Binance 76. São 24 financiadores distintos no
+              conjunto e exatamente 1 está na lista.
+
+              A heurística continua como fallback e foi validada por ela: das
+              3 wallets que ela classificava como exchange, 2 foram confirmadas
+              pelo Dune (Binance 76 e Bybit 6) e a terceira, 0x8581784d…,
+              segue "inferred". Não foi refutada, só não foi nomeada.
+              ⚠️ Licença BSL 1.1 (Dune Analytics AS, Change Date 2027-03-03).
 ```
 
 Bug corrigido no caminho: o primeiro inbound de **token** costuma nomear um contrato, não um financiador (um endereço saiu com "funder" 0x4200…0006, que é o WETH da Base). O inbound **nativo** tem precedência; token transfer é fallback só para carteiras que nunca enviaram transação, que é justamente o caso das carteiras de relayer.
@@ -354,8 +367,13 @@ Nenhuma delas enfraquece a v0.1 se você as disser primeiro.
 
 ```
 eth-labels (dawsbot)      GitHub, 169k+ endereços rotulados em chains EVM, importável
+                          ❌ na prática é um scraper do Basescan, sem dataset
 evm-labels (Earnifi)      GitHub, importável
-Dune Spellbook            tabelas de labels com CEX, open source
+⭐ Dune Spellbook          ADOTADO. Modelo cex_evms.addresses, commit pinado
+                          9f61b0d de 28/01/2026: 4.957 endereços, 328 exchanges.
+                          Reconstruível por scripts/build-cex-labels.ts, que
+                          reproduz o arquivo byte a byte. Ver o bloco CEX em 4c2
+                          para a medição e a ressalva de licença BSL 1.1.
 ⚠️ community-maintained: verificar antes de confiar
 
 CEX hot wallets   conhecidas nos explorers (Blockscout já rotula várias)
@@ -566,7 +584,8 @@ PREDICTION MARKETS   o insider da Google criou wallet fresca, apostou US$200K
 1:30-5:30   DEMO AO VIVO, do ponto de vista do VENDEDOR
             a tela mostra requests chegando no endpoint. TRÊS casos, nesta ordem:
 
-            1. 0x2CfF890f…   score 857 · fundada por exchange · 648 dias
+            1. 0xeA258496…   score 857 · fundada por Binance 76 · 659 dias
+                             · 49.577 transações
                → 200 OK, recurso entregue, pagamento liquidado
 
             2. wallet fresca fundada por exchange · 2 dias
