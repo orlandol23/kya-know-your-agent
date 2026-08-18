@@ -187,9 +187,10 @@ retry budget is sized for a live demo; a longer outage is what `--offline` is fo
 ## Deliberately not in v0.1
 
 No LLM. No agent: this is the verification primitive, not a wallet with a
-chatbot. Roadmap, in order: labelled-contract signal, a user rating layer where
-only addresses that actually paid an agent can rate it, ecosystem familiarity,
-an EIP-712 attestation a Solidity contract can consume, and a ZK credential
-binding an agent to its principal.
+chatbot. Roadmap, in order: a counterparty signal (measured and deferred, the
+popularity source times out on Base, see DECISIONS.md D17), a user rating layer
+where only addresses that actually paid an agent can rate it, ecosystem
+familiarity, an EIP-712 attestation a Solidity contract can consume, and a ZK
+credential binding an agent to its principal.
 
 Built solo in 14 days for the Borderless Web3 hackathon (Aug 2026).
