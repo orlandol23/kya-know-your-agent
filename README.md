@@ -181,15 +181,35 @@ demo flips to fixtures without a restart. In offline mode an address without a
 fixture is a 404 (a 503 at the gate), never a silent fallback to stale data.
 
 The Blockscout Free tier allows 5 requests per second (and 100,000 credits a
-month at 20 per call, so roughly 700 verifies; the 10-minute cache stretches
-that). The client paces every call to at most 4 per second, process-wide, and
-treats 429 as "wait what `Retry-After` says", so two panels verifying at once
-queue for ~3 s instead of tripping the limit.
+day, renewed daily, at 20 per call, so roughly 700 verifies per day; the
+10-minute cache stretches that). The client paces every call to at most 4 per
+second, process-wide, and treats 429 as "wait what `Retry-After` says", so two
+panels verifying at once queue for ~3 s instead of tripping the limit.
 
 Failure modes checked: zero-transaction address (suspicious, score 0), invalid
 address (400), Blockscout answering 500 (502 after one retry, ~1 s), Blockscout
 hanging (each call times out at 8 s; 2 attempts, so ~17 s before the 502). The
 retry budget is sized for a live demo; a longer outage is what `--offline` is for.
+
+## Related work
+
+Credential systems — Visa TAP, Mastercard Verifiable Intent, Skyfire
+KYAPay, Trulioo/PayOS Digital Agent Passport, ERC-8004 — issue an
+identity to the agent and require an acceptor. ERC-8004 also carries a
+Reputation Registry; a 2026 preprint measuring it as deployed found
+feedback rarely anchored in verifiable interaction and over ninety
+percent of reviewers on Base showing coordinated sybil behaviour.
+
+History-based scoring of x402 payers exists: AgentQuay, DJD AgentScore,
+ACHIVX, AgentKarma, Agent402. They score the wallet's x402 payment
+history, which means a wallet with two years of Base activity and no
+prior x402 use is a cold start.
+
+KYA scores the wallet's general Base history, weights funding
+provenance highest because it is the most expensive signal to forge,
+keeps sanctions in a binary gate outside the score, and derives its
+thresholds from a committed labeled set. No issuer, no registry, no
+prior x402 history required.
 
 ## Deliberately not in v0.1
 

@@ -160,6 +160,7 @@ por trás.
 
 Três eixos com fonte citada valem mais que quatro com um mal medido. Adiado, não
 descartado: volta quando existir uma fonte que responda.
+
 ## D18: checagem de fatos externos, 18/08/2026
 O pitch foi para checagem de fatos e três afirmações sobre o mundo externo
 estavam erradas ou imprecisas. Nada aqui toca medição minha: limiares, scores,
@@ -208,3 +209,14 @@ apresentam comportamento sybil coordenado. É PREPRINT, e fica registrado como
 tal: não é revisado por pares e não deve ser citado como se fosse. Se sustentar,
 é o argumento mais forte a favor de reputação derivada de histórico on-chain em
 vez de reputação declarada por pares.
+
+## Custo de operação: o tier gratuito já cobre a v0.1
+O tier Free da Blockscout Pro dá 100.000 créditos por DIA (confirmado na
+página de planos em 18/08/2026), a 20 créditos por chamada e 5 requisições
+por segundo. São 5.000 chamadas por dia; no pior caso de 7 chamadas por
+verify, cerca de 700 verificações diárias, e o cache de 10 minutos estica
+isso. O plano seguinte custa US$49 por mês e dá 100 milhões de créditos.
+
+Consequência: o custo marginal por verificação é próximo de zero, e a fonte
+de dados não é o gargalo econômico deste produto. O gargalo é adoção, não
+infraestrutura.
