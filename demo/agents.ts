@@ -3,7 +3,7 @@
  *
  * The buyer side of the demo: two agents, one paid endpoint, same request.
  *
- *   established   0xeA258496…9F04   657 days, 49k tx, exchange-funded    -> expects 200
+ *   established   0xeA258496…9F04   exchange-funded, long history        -> expects 200
  *   fresh         generated now, zero history by construction           -> expects 403
  *
  * The 403 arrives BEFORE settlement: the fresh agent signs a payment, the gate
@@ -232,7 +232,7 @@ async function main(): Promise<void> {
     const how = agent.key !== undefined ? 'x402-fetch client' : 'synthetic header, no key'
     const origin = agent.name === 'fresh'
       ? OFFLINE ? 'fixture: generated on D2, zero history' : 'generated now, zero history'
-      : 'calibration set, 648 days, exchange-funded'
+      : 'calibration set, exchange-funded'
     console.log(`  ${agent.name.padEnd(12)} ${agent.address}   ${origin}   [${how}]`)
     try {
       const outcome = await run(agent, url)
