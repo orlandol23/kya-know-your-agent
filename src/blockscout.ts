@@ -1,9 +1,16 @@
 /**
- * The three bounded Blockscout calls behind every verify.
+ * The four bounded Blockscout reads behind every verify, which cost six HTTP
+ * requests in total (seven when /counters comes back cold and is re-read).
+ * Numbered as the per-function docstrings below label them:
  *
- *   1. txlist sort=asc offset=1                    first tx  -> AGE
- *   2. addresses/{addr}/transactions (<= 3 pages)  window    -> DIVERSITY + CADENCE
- *   3. addresses/{addr}/counters                   tx count  -> VOLUME
+ *   1. txlist  sort=asc  offset=10            first tx       -> AGE (+ funding)      1 req
+ *   2. txlist  sort=desc offset=50, 3 pages   window         -> DIVERSITY + CADENCE  3 req
+ *   3. addresses/{addr}/counters              lifetime count -> VOLUME               1 req
+ *   4. tokentx sort=asc  offset=10            first token in -> FUNDING fallback     1 req
+ *
+ * The window is served by the Etherscan-compatible txlist, NOT by v2
+ * addresses/{addr}/transactions: see fetchTransactionWindow for the three
+ * measured reasons it was switched.
  *
  * Signals are read from the Blockscout Pro API, which is key-gated and has the
  * rate limit a live demo needs. Pro routes the two APIs under different
@@ -15,9 +22,9 @@
  * The public explorer (base.blockscout.com) is never called: it only builds the
  * human-clickable evidence link that ships with the attestation.
  *
- * Cost per address is constant (3 to 5 requests) no matter how large the
- * address is. Diversity and cadence are therefore windowed over the last
- * <= 150 transactions, and that is declared in the output.
+ * Cost per address is constant (6 requests, 7 when /counters is cold) no matter
+ * how large the address is. Diversity and cadence are therefore windowed over
+ * the last <= 150 transactions, and that is declared in the output.
  */
 
 import { ConfigError } from './config.js'
@@ -52,9 +59,9 @@ const REQUEST_TIMEOUT_MS = 8_000
 
 /*
  * Blockscout Free tier (checked on the dashboard, 2026-08-16): 5 requests per
- * second, 100,000 credits a month, 20 credits per call. One verify is 6 calls
- * (7 when /counters is cold); the UI fires two panels at once, so 12 to 14
- * requests hit the API together and the first demo run took a 429. Every call
+ * second, 100,000 credits a day renewed daily, 20 credits per call. One verify
+ * is 6 calls (7 when /counters is cold); the UI fires two panels at once, so 12
+ * to 14 requests hit the API together and the first demo run took a 429. Every call
  * goes through acquireSlot() below: at most RATE_LIMIT_PER_SEC starts in any
  * rolling second, process-wide, with one request of margin under the tier.
  * Two panels now take ~3 s of pacing instead of a 429.

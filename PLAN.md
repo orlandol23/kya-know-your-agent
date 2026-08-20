@@ -177,16 +177,27 @@ FULL = p25 do grupo established    a partir daqui, típico de endereço estabele
 
 **O limiar é output do repositório, não input.**
 
-## c1) ⭐ RESULTADOS DA CALIBRAÇÃO (medidos em 15/08, n=30)
+## c1) ⭐ RESULTADOS DA CALIBRAÇÃO (medidos em 16/08, n=30)
 
 ```
 sinal        ZERO (p75 fresh)   FULL (p25 established)   separação    veredito
-age_days           2.84                531.89              187x       ✅ usar
-tx_count          53.75               1894.50               35x       ✅ usar
-diversity          5.75                  6.00              0.25x      ⚠️ não separa
-txs_24h           32.75                  7.00             INVERTIDO   ⚠️ não separa
-txs_7d            53.75                 41.25             INVERTIDO   ⚠️ não separa
+age_days           3.03                532.09              176x       ✅ usar
+tx_count          54.75               2236.25               41x       ✅ usar
+diversity          5.75                  6.25              0.09x      ⚠️ não separa
+txs_24h           30.25                  7.50             INVERTIDO   ⚠️ não separa
+txs_7d            54.75                 41.25             INVERTIDO   ⚠️ não separa
 ```
+
+> **Rodada de 16/08/2026**, a mesma commitada em `src/config.ts` e derivada de
+> `data/signals.csv`. Reproduza com `npx tsx scripts/calibrate.ts`. Substitui a
+> rodada de 15/08, que trazia 187x e 35x e ficou aqui depois que o `config.ts`
+> já tinha avançado.
+>
+> Cuidado ao reproduzir: o script imprime **apenas ZERO e FULL**. A coluna
+> `separação` é anotação à mão, copiada de `src/config.ts`, e não sai do script.
+> Ela também não é uma conta só: `176x` e `41x` são `FULL/ZERO`, enquanto o
+> `0.09x` da diversidade é `(FULL-ZERO)/ZERO` (por `FULL/ZERO` seria `1.09x`).
+> Os valores estão como `config.ts` os registra; a convenção é que está mista.
 
 **Por que o ritmo inverteu:** wallet fresca de bot dispara 150 transações num dia; endereço estabelecido fica dormente. Ritmo mede **atividade atual, não track record**. Os dados confirmaram, sem saber, o desenho que o Marko já tinha proposto: cadência entra como `cadence_penalty` multiplicativa, não como eixo positivo normalizado.
 
@@ -228,8 +239,8 @@ sinal          peso v0.1   estado          nota
 funding          0.40      ⭐ D3           primeiro inbound: CEX vs mixer.
                                            Mais difícil de forjar. Sobe de prioridade
                                            porque diversidade e ritmo caíram.
-maturity         0.35      ✅ tem          idade. Separa 187x. Forjável esperando.
-volume           0.25      ✅ tem          contagem. Separa 35x. Barato de forjar
+maturity         0.35      ✅ tem          idade. Separa 176x. Forjável esperando.
+volume           0.25      ✅ tem          contagem. Separa 41x. Barato de forjar
                                            com self-sends, por isso o menor peso.
 ---
 contracts         —        roadmap         contrapartes são protocolos rotulados?
