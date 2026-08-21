@@ -1,7 +1,7 @@
 {
   "kya_history": "v0.1",
   "address": "0x098B716B8Aaf21512996dC57EB0615e2383E2f96",
-  "captured_at": "2026-08-17T19:02:07.440Z",
+  "captured_at": "2026-08-21T12:23:41.915Z",
   "chain_id": 8453,
   "api_url": "https://api.blockscout.com",
   "note": "Dated capture of a live address. Its on-chain history has moved on since; the attestation built from this file carries captured_at as evidence.fetched_at.",
@@ -112,7 +112,7 @@
       "gasUsageCount": 0,
       "validationsCount": 0
     },
-    "fetchedAt": "2026-08-17T19:02:07.440Z",
+    "fetchedAt": "2026-08-21T12:23:41.915Z",
     "blockscoutUrl": "https://base.blockscout.com/address/0x098B716B8Aaf21512996dC57EB0615e2383E2f96"
   }
 }
