@@ -84,9 +84,10 @@ function stubFacilitator(app: express.Express, mountPath: string): void {
   })
 }
 
-function answer(question: string): string {
-  // A stand-in for the model. The point of the demo is who gets to ask.
-  return `[chem-model] "${question}" -> this is a demo answer; the real model would reply here.`
+function answer(): string {
+  // A stand-in for the model. The point of the demo is who gets to ask, so the
+  // placeholder deliberately says nothing about what was asked.
+  return '[chem-model] query answered -> this is a demo answer; the real model would reply here.'
 }
 
 function main(): void {
@@ -131,11 +132,10 @@ function main(): void {
 
   // 3. The resource. Only reached by a payer the gate let through, with a
   //    payment x402-express verified.
-  app.get('/chem', (req: Request, res: Response) => {
-    const question = typeof req.query.q === 'string' && req.query.q.trim() ? req.query.q.trim() : 'hello'
+  app.get('/chem', (_req: Request, res: Response) => {
     const kya = res.locals.kya as GateResult | undefined
     res.json({
-      answer: answer(question),
+      answer: answer(),
       served_to: kya?.payer ?? null,
       kya_verdict: kya?.verification.verdict.verdict ?? null,
       kya_score: kya?.verification.verdict.score ?? null,
