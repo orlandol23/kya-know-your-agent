@@ -601,8 +601,8 @@ PREDICTION MARKETS   o insider da Google criou wallet fresca, apostou US$200K
 1:30-5:30   DEMO AO VIVO, do ponto de vista do VENDEDOR
             a tela mostra requests chegando no endpoint. TRÊS casos, nesta ordem:
 
-            1. 0xeA258496…   score 857 · fundada por Binance 76 · 659 dias
-                             · 49.577 transações
+            1. 0xeA258496…   score 857 · fundada por Binance 76 · 663 dias
+                             · 51.666 transações
                → 200 OK, recurso entregue, pagamento liquidado
 
             2. wallet fresca fundada por exchange · 2 dias

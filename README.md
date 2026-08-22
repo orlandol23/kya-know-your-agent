@@ -27,17 +27,17 @@ Returns a signed attestation:
   "score":     857,                    // 0..1000
   "summary":   "established track record: score 857 at or above 193",
   "reasons":   ["funded by Binance 76 (0x3304e22d...7b566a), identity confirmed against dune-spellbook@9f61b0d", "..."],
-  "signals":   { "age_days": 659, "tx_count": 49577, "distinct_counterparties": 2,
-                 "txs_24h": 150, "txs_7d": 150, "burst_ratio": 6.08,
+  "signals":   { "age_days": 662.73, "tx_count": 51666, "distinct_counterparties": 2,
+                 "txs_24h": 150, "txs_7d": 150, "burst_ratio": 4.5,
                  "funding": { "class": "exchange", "source": "0x3304e22d...7b566a", "via": "native",
                               "funder_label": "Binance 76", "label_source": "dune-spellbook@9f61b0d", "..." : "..." },
                  "...": "..." },
   "evidence":  { "chain_id": 8453,
                  "blockscout_url": "https://base.blockscout.com/address/0xeA25...9F04",
                  "window": { "size": 150, "max": 150, "capped": true },
-                 "fetched_at": "2026-08-17T19:02:24.264Z" },
+                 "fetched_at": "2026-08-21T12:23:39.247Z" },
   "attester":  "0xCEFEDCf160e8065ce82B949A0dFc777BD2E2Cd8C",
-  "issued_at": "2026-08-17T19:10:07.576Z",
+  "issued_at": "2026-08-21T12:23:45.118Z",
   "signature": "0x80b15b6b...b1d82c1c"   // EIP-191 over everything above
 }
 ```
@@ -122,10 +122,24 @@ with 503, still before settlement.
 
 ## Try it
 
-    cp .env.example .env    # Blockscout Pro key + throwaway attester key
     npm i
+    cp .env.example .env
+
+Every attestation is signed, offline ones included, so one key is always
+needed: a throwaway attester that never holds funds. Generate it and put it in
+`.env` as `ATTESTER_PRIVATE_KEY`:
+
+    node -e "import('viem/accounts').then(a => console.log(a.generatePrivateKey()))"
+
+That is everything offline mode needs. No Blockscout key, no network:
+
+    npx tsx src/cli.ts --offline 0xeA258496a9311Ffe29CDf920Ca0E8BB4B41c9F04   # replays a committed fixture
+    npx tsx src/server.ts --offline                      # GET /verify + the demo UI at /
+    open http://localhost:3000/?offline=1                # two agents side by side
+
+Reading Base mainnet live needs `BLOCKSCOUT_API_KEY` in `.env` as well:
+
     npx tsx src/cli.ts 0xYourAddress                     # verdict, score, why, signature
-    npx tsx src/cli.ts --offline 0xeA258496a9311Ffe29CDf920Ca0E8BB4B41c9F04   # no network, no key (see Offline mode)
     npx tsx src/server.ts                                # GET /verify + the demo UI at /
     curl "localhost:3000/verify?address=0xYourAddress"
     open http://localhost:3000/                          # two agents side by side

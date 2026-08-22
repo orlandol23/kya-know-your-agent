@@ -128,7 +128,7 @@ risk score 75.5 do DD.xyz, com flags de FLAGGED ADDRESS e WASH TRADER. Mostrar
 TRUSTED 857 nesse endereço ao vivo seria indefensável.
 
 O substituto é `0xeA258496a9311Ffe29CDf920Ca0E8BB4B41c9F04`: sem tags, risk score
-21.2 sem alerta, 49.577 transações, 659 dias. O motivo principal não é nenhum
+21.2 sem alerta, 51.666 transações, 663 dias. O motivo principal não é nenhum
 desses: é que ele é financiado pelo MESMO Binance 76 que financia o endereço
 fresh da demo. O argumento da demo depende disso. Mesmo funder confirmado, mesma
 classe de funding, e mesmo assim TRUSTED 857 contra SUSPICIOUS 60. A diferença
@@ -197,7 +197,7 @@ listas separadas; era só o texto que conflava.
 **Existe reputação por histórico no x402 além do KYA.** AgentQuay, DJD
 AgentScore, ACHIVX, AgentKarma e Agent402. Todos pontuam HISTÓRICO DE PAGAMENTO
 X402, e isso significa cold start para carteira antiga que nunca usou x402: para
-eles, um endereço com 659 dias e 49.577 transações na Base começa do zero se o
+eles, um endereço com 663 dias e 51.666 transações na Base começa do zero se o
 x402 for novidade para ele. O KYA pontua histórico geral da Base. Essa é a
 diferença, e não é afirmação de superioridade: é escolha de fonte, com o custo
 simétrico de não medir nada específico de x402.
