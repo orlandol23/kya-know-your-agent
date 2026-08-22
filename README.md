@@ -73,7 +73,10 @@ Returns a signed attestation:
   JavaScript. In Python it is `json.dumps(body, sort_keys=True, separators=(',', ':'))`;
   the two produce identical bytes. The attester address is printed when the
   server starts and echoed in `attester` for discovery, but a consumer decides
-  which attester to trust, not the payload.
+  which attester to trust, not the payload. A hosted deployment signs with its
+  own production key, so the attester shown in these examples is **not** the one
+  a live response carries: pin the address the running server prints, not the
+  one printed here.
 
   Attestations are point-in-time. `issued_at` says when; consumers decide their
   own freshness policy.

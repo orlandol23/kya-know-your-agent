@@ -370,11 +370,14 @@ There is:
 - **no database**, no session, no user account, no API key of its own to issue;
 - **no stored score** — nothing is ever "a score of record", so nothing can go
   stale without saying so;
-- **nothing shared between requests** except the process-wide rate-limit queue.
+- **nothing shared between requests** except the process-wide rate-limit queue
+  and, on a public deployment, the counter of live verifications spent today
+  (§6.2). Both are in-memory and per-instance: two instances have two of each.
 
 Responses are served `cache-control: no-store` and carry
 `X-KYA-Source: live | cache | fixture` so a caller always knows which of the
-three answered.
+three answered, plus `X-KYA-Degraded: budget | upstream` when a replay stood in
+for a live read that could not be served (§6.2).
 
 The only writable state is `data/cache/`, a 10-minute TTL keyed by address, and it
 is a pure convenience: on a read-only checkout the write failure is swallowed on
@@ -388,15 +391,26 @@ inside their own process, which is what the demo does.
 
 ### 6.2 If it falls over
 
-The rule underneath all of it: **fail closed, before settlement.** If reputation
-cannot be read, the seller does not serve blind — and nobody has paid for a
-verdict that does not exist.
+Two rules, and which one applies depends on whether money is at stake.
+
+**At the gate: fail closed, before settlement.** If reputation cannot be read,
+the seller does not serve blind — and nobody has paid for a verdict that does
+not exist. `src/gate.ts` never degrades, never substitutes older evidence, and
+never guesses: it refuses with `503`.
+
+**At `GET /verify`: degrade, and label it.** That endpoint is read-only and
+settles nothing, so answering with a committed dated capture — clearly marked as
+one — is more useful than a `502`, and it costs a caller nothing to detect. The
+headers say which source answered and why it stood in, and `evidence.fetched_at`
+still carries the instant the chain was actually read, so a replay can never
+pass itself off as a fresh read.
 
 | What breaks | What the caller gets | Did anything settle? |
 |---|---|---|
-| Blockscout answers 500 | 1 retry (~0.5–0.75 s backoff) → `502` from the server, `503` from the gate. ~1 s total | No |
-| Blockscout hangs | 8 s timeout, 2 attempts → ~17 s → `502` / `503` | No |
-| Blockscout rate-limits (429) | up to 3 dedicated retries honouring `Retry-After`, then the normal budget | No |
+| **Daily live-verify budget spent** (public deployment) | The server stops calling Blockscout *before* the network, and replays a committed capture: `200`, `X-KYA-Source: fixture`, `X-KYA-Degraded: budget`. No capture for that address → `429` with `Retry-After` counting down to 00:00 UTC. Cap from `KYA_DAILY_VERIFY_BUDGET` (default 500); only reads that actually reach Blockscout are charged, so a cache hit is free | No |
+| Blockscout answers 500 | 1 retry (~0.5–0.75 s backoff), then the **server** replays a committed capture if it has one (`X-KYA-Degraded: upstream`), else `502` carrying the real upstream message. The **gate** does not degrade: `503` | No |
+| Blockscout hangs | 8 s timeout, 2 attempts → ~17 s, then the same fallback: replay if a capture exists, else `502` / `503` | No |
+| Blockscout rate-limits (429) | up to 3 dedicated retries honouring `Retry-After`, then the normal *retry* budget | No |
 | Bad or missing API key (401/402) | thrown immediately, no retry, with the actionable message | No |
 | `ATTESTER_PRIVATE_KEY` missing or malformed | `ConfigError` **at boot** — the process refuses to start | Nothing ever ran |
 | Offline mode, no fixture for the address | `404` from the server, `503` from the gate. Never a silent fallback to stale data | No |
@@ -408,6 +422,13 @@ instead of ~65 s. The answer to a longer outage is not patience, it is
 `--offline`, which replays committed dated captures and never touches the
 network. A live server also honours `?offline=1` per request, so the demo flips
 to fixtures without a restart.
+
+**What the fallback is not.** It buys availability of an *answer*, never
+freshness. A degraded reply is a dated capture: same format, same signature, and
+an `evidence.fetched_at` that is visibly old. It is the right answer for a demo
+URL that must stay useful under abuse or an upstream outage, and it is the wrong
+answer for a seller deciding whether to serve a paying agent — which is exactly
+why the gate does not do it.
 
 **What survives an outage:** every attestation already issued. It is a standalone
 signed object — a consumer verifies it with `ecrecover` and re-reads the evidence
