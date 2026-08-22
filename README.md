@@ -13,6 +13,10 @@ no buyer profile and no public endpoint to query one.
 
 KYA answers the missing question: **who is this agent, and what has it done?**
 
+![Two KYA panels side by side: the same address funder on both, scored 857 trusted and 60 suspicious](docs/ui.png)
+
+*Same funder, confirmed against the same label set. 857 and 60.*
+
 ## What it does
 
     GET /verify?address=0x...
@@ -96,6 +100,10 @@ The order is the mechanism: x402-express settles only after the handler answers
 the signature over it; the payment middleware does, so a forged `from` fails
 there and never settles. Requests without a payment header pass through so the
 client can receive the 402 with the payment requirements.
+
+![Terminal run of the demo: the established wallet is served 200, the fresh wallet is refused 403 before settlement](docs/x402-flow.png)
+
+*The fresh wallet signs a payment and is refused with 403 before x402 settles: it pays nothing.*
 
 A refusal carries the reason and the signed attestation, so the refused agent
 can verify the claim against Blockscout itself:
