@@ -1,5 +1,14 @@
-# KYA v0.1 · Plano de implementação
+# KYA v0.1 · Implementation plan (Plano de implementação)
 
+> **Note for English readers.** This file is in Portuguese: it is the working
+> plan written while the system was being built, kept as a historical record
+> because code and data cite its calibration sections by number. Every heading
+> carries an English translation so the file can be navigated. What the system
+> does *today* is in [`README.md`](README.md),
+> [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) and
+> [`DECISIONS.md`](DECISIONS.md), and where this plan disagrees with them, they
+> are the ones that hold.
+>
 > **Registro histórico do planejamento, não documentação corrente.** O que o
 > sistema faz hoje está no `README.md`, em `docs/ARCHITECTURE.md` e em
 > `DECISIONS.md`; onde este plano divergir deles, eles é que valem. As seções de
@@ -19,7 +28,7 @@ Dados        Blockscout Pro API, Base mainnet (chain 8453)
 
 ---
 
-# ⚠️ Duas correções de rota descobertas no D2 (15/08)
+# ⚠️ Two routing corrections found on D2, 15/08 (Duas correções de rota descobertas no D2)
 
 **A janela mudou de rota.** O endpoint v2 `/addresses/{addr}/transactions` devolveu 500 em 23 de 30 endereços durante a coleta. A janela passou a usar `txlist` paginado, que é a mesma rota Etherscan-compatible da chamada 1. Validado: números idênticos nas duas rotas (0x3c95… deu 90 tx / 58 contrapartes pelas duas). Ganho colateral: ~10x mais rápido (2s contra 20s por página) e com páginas numeradas, então as 3 vão em paralelo em vez de seguir cursor. Para uma demo ao vivo, é a diferença entre 2s e 60s por verify.
 
@@ -27,11 +36,11 @@ Dados        Blockscout Pro API, Base mainnet (chain 8453)
 
 ---
 
-# 4 · Metodologia de calibração
+# 4 · Calibration methodology (Metodologia de calibração)
 
 O objetivo: quando perguntarem "por que 70 e não 60?", a resposta é lida dos dados, não defendida no grito.
 
-## a) Composição do conjunto: 3 estratos de 10, com proveniência registrada
+## a) Set composition: 3 strata of 10, with recorded provenance (Composição do conjunto: 3 estratos de 10, com proveniência registrada)
 
 ```
 established   10 EOAs com atividade sustentada na Base.
@@ -53,7 +62,7 @@ mid           10 intermediários: semanas de idade com pouca diversidade, ou
 
 **Rotule pelo observável** (established, fresh, mid), nunca por "bom" ou "mau". Não existe ground truth de malícia: o score mede histórico, não intenção. Igual antispam. Diga isso no pitch antes que um juiz diga para você.
 
-## b) Colunas do CSV
+## b) CSV columns (Colunas do CSV)
 
 ```
 addresses.csv    address, label, provenance, notes
@@ -63,7 +72,7 @@ signals.csv      address, label, first_seen, age_days, tx_count,
                  fetched_at, blockscout_url
 ```
 
-## c) Normalização por sinal (os limiares continuam saindo dos dados)
+## c) Per-signal normalization, the thresholds still come out of the data (Normalização por sinal: os limiares continuam saindo dos dados)
 
 Cada sinal é normalizado para 0..1 com clamp linear entre dois percentis do conjunto de referência:
 
@@ -78,7 +87,7 @@ FULL = p25 do grupo established    a partir daqui, típico de endereço estabele
 
 **O limiar é output do repositório, não input.**
 
-## c1) ⭐ RESULTADOS DA CALIBRAÇÃO (medidos em 16/08, n=30)
+## c1) ⭐ CALIBRATION RESULTS, measured 16/08, n=30 (RESULTADOS DA CALIBRAÇÃO)
 
 ```
 sinal        ZERO (p75 fresh)   FULL (p25 established)   separação    veredito
@@ -108,7 +117,7 @@ txs_7d            54.75                 41.25             INVERTIDO   ⚠️ nã
 
 **Frame de amostragem, para a pergunta "de onde vieram os 30":** EOAs que enviaram USDC na Base nos blocos 50021246 a 50021255, que é a população mais próxima de agentes pagando via x402. Foram medidos 74 candidatos e selecionados por regras declaradas no cabeçalho do `addresses.csv` (as 7 mais novas para fresh, 7 a 90 dias para mid, as 10 mais antigas para established), nenhuma baseada no sinal em calibração. Fora do frame: 3 endereços gerados localmente, o endereço da demo e o vitalik.eth.
 
-## ⭐ Limitação descoberta e a declarar no pitch: relayer e account abstraction
+## ⭐ A limitation found, to be declared in the pitch: relayer and account abstraction (Limitação descoberta e a declarar no pitch)
 
 Dos 74 endereços amostrados, **13 têm zero transações mas até 73.598 token transfers**. São carteiras que pagam via relayer ou account abstraction: o `from` do token transfer é elas, mas quem envia a transação é outro endereço.
 
@@ -116,7 +125,7 @@ Pelos sinais da v0.1, um agente desses é **indistinguível de uma carteira cria
 
 Declare isso antes que um juiz pergunte. E é o argumento mais direto para o funding provenance: o primeiro inbound existe mesmo quando a contagem de transações não existe.
 
-## c2) A função de reputação: média geométrica ponderada
+## c2) The reputation function: weighted geometric mean (A função de reputação: média geométrica ponderada)
 
 > Fonte: Q&A com um mentor do programa, Week 12 (15/08). Substitui a soma linear de 25 pontos por sinal que estava aqui antes.
 
@@ -212,7 +221,7 @@ cotiming_corr > 0.9     × 0.60    move em sincronia com um cluster
 
 Só o `burst_ratio` é barato de calcular com o que você já busca. Os outros dois são roadmap.
 
-## d) Cortes de veredito
+## d) Verdict cutoffs (Cortes de veredito)
 
 Rode o score sobre os 30 endereços. Os cortes vão no **vão vazio entre os clusters**:
 
@@ -240,7 +249,7 @@ fundada por wallet fresca suspeita      suspicious    ⏳ parcial: funding class
 
 Separação no conjunto de calibração: **10/10 fresh → suspicious, 10/10 established → trusted, com vão vazio de 109 pontos (84 a 193).** O estrato mid espalha 4 suspicious / 2 unknown / 4 trusted, que é o que um estrato de fronteira deve fazer.
 
-## ⭐ A wallet fresca fundada por CEX: a melhor demonstração do desenho
+## ⭐ The fresh CEX-funded wallet: the best demonstration of the design (A wallet fresca fundada por CEX: a melhor demonstração do desenho)
 
 ```
 funding 1.000 (exchange), maturity 0, volume 0  →  score 60  →  SUSPICIOUS
@@ -248,7 +257,7 @@ funding 1.000 (exchange), maturity 0, volume 0  →  score 60  →  SUSPICIOUS
 
 Com **soma linear** ela teria tirado cerca de 400 e passado. Com **média geométrica**, o eixo forte não compensou os fracos. Este é o argumento mais concreto para "por que não é só somar os sinais", e vale um trecho do pitch.
 
-## ⚠️ Decisão sobre o vitalik.eth: TRUSTED está certo
+## ⚠️ Decision on vitalik.eth: TRUSTED is correct (Decisão sobre o vitalik.eth: TRUSTED está certo)
 
 A tabela original esperava que ele saísse suspicious ou unknown por ter 1 contraparte na janela. Ele saiu **TRUSTED com 563**, e a linha do benchmark é que estava errada, não o score.
 
@@ -262,11 +271,11 @@ Ou seja: diversidade não saiu do score só por não separar os grupos. Saiu por
 
 Se algum caso do benchmark não existir no conjunto, diga que é o próximo a cobrir. Não invente.
 
-## e) A resposta pronta para a pergunta do juiz
+## e) The ready answer to the judge's question (A resposta pronta para a pergunta do juiz)
 
 > "O corte fica no vão entre os clusters do conjunto de referência. Os valores exatos saem de `npx tsx scripts/calibrate.ts`, que qualquer um roda em cima do `signals.csv` commitado."
 
-## f) Honestidades a declarar de saída
+## f) Honesty to declare up front (Honestidades a declarar de saída)
 
 ```
 n=30 é conjunto de referência, não estatística
@@ -277,7 +286,7 @@ na v0.1 só um subconjunto dos pesos está ativo; o resto é roadmap declarado
 
 Nenhuma delas enfraquece a v0.1 se você as disser primeiro.
 
-## g) Fontes para funding provenance (se der tempo no D4-D5)
+## g) Sources for funding provenance, if there is time on D4-D5 (Fontes para funding provenance)
 
 ```
 eth-labels (dawsbot)      GitHub, 169k+ endereços rotulados em chains EVM, importável
@@ -300,7 +309,7 @@ Mixers            Tornado Cash, Houdini Swap. Reconhecer é heurístico:
 
 ---
 
-# 6 · Riscos de execução
+# 6 · Execution risks (Riscos de execução)
 
 **1. Blockscout instável ou com rate limit no dia da demo. ⚠️ JÁ ACONTECEU.**
 Em 15/08, por volta das 22h20, a Blockscout Pro devolveu 500 em **23 de 30 endereços** durante a coleta do D2, mesmo com os 3 retries. Sete dias antes da demo. O `--offline` do D7 não é rede de segurança teórica: é requisito, e não é cortável em hipótese nenhuma. Gravar um vídeo de backup no D8 para tocar caso tudo falhe ao vivo.
@@ -322,9 +331,9 @@ Reportar `tx_count` como "≥N (janela)" e seguir. O score usa clamp, então nã
 
 ---
 
-# 7 · As três decisões
+# 7 · The three decisions (As três decisões)
 
-## 1. Contrato verificador on-chain: não fazer na v0.1
+## 1. On-chain verifier contract: not in v0.1 (Contrato verificador on-chain: não fazer na v0.1)
 
 A portabilidade já fica provada pelas 3 linhas de `recoverMessageAddress` no README: qualquer stack verifica sem confiar na sua API, hoje.
 
@@ -332,11 +341,11 @@ Contrato on-chain só cria valor quando um **contrato** consome o atestado (escr
 
 Projete verbalmente: *"próximo marco: atestado EIP-712 consumível por contratos"*. Ver a hierarquia de marcos no fim deste documento.
 
-## 2. Runtime: TypeScript e Node, sem disputa
+## 2. Runtime: TypeScript and Node, no contest (Runtime: TypeScript e Node, sem disputa)
 
 viem cobre assinar e recuperar, os SDKs de x402 são TS-first, e `tsx` elimina build. Qualquer alternativa custa prazo e não compra nada no pitch.
 
-## 3. Persistência: stateless
+## 3. Persistence: stateless (Persistência: stateless)
 
 O atestado é point-in-time: `issued_at` mais uma linha no README ("consumers decide their own freshness policy").
 
@@ -344,7 +353,7 @@ O único armazenamento que se paga: cache JSON em arquivo por endereço com TTL 
 
 ---
 
-# 8 · Ajustes estruturais em relação ao grafo original
+# 8 · Structural adjustments relative to the original graph (Ajustes estruturais em relação ao grafo original)
 
 Declarados, não escondidos.
 
@@ -359,7 +368,7 @@ Assuma isso na primeira frase técnica do pitch. É a pergunta mais provável do
 
 ---
 
-# Hierarquia de marcos
+# Milestone hierarchy (Hierarquia de marcos)
 
 O KYA responde duas perguntas. A v0.1 resolve a primeira.
 

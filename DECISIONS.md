@@ -1,82 +1,90 @@
-# Decisões
+# Decisions (Decisões)
 
-## Fonte de dados: Blockscout Pro, não Etherscan
+> **Note for English readers.** The body of this file is in Portuguese: it was
+> written as a working record while the system was being built, not as a
+> deliverable. Every section is one decision and the reasoning behind it, and
+> the headings carry an English translation so the file can be navigated. The
+> same material in English is in [`README.md`](README.md),
+> [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) and
+> [`docs/POSITIONING.md`](docs/POSITIONING.md).
+
+## Data source: Blockscout Pro, not Etherscan (Fonte de dados: Blockscout Pro, não Etherscan)
 A Etherscan V2 tirou a Base do tier gratuito. Blockscout Pro é compatível com
 o formato Etherscan, então a troca custou uma variável de ambiente.
 
-## A janela usa txlist, não o endpoint v2
+## The window uses txlist, not the v2 endpoint (A janela usa txlist, não o endpoint v2)
 O `/addresses/{addr}/transactions` devolveu 500 em 23 de 30 endereços durante
 a coleta. O txlist paginado devolve os mesmos números, é ~10x mais rápido e
 usa páginas numeradas, então as 3 vão em paralelo. Numa demo ao vivo isso é
 a diferença entre 2s e 60s por verify.
 
-## /counters precisa de duas leituras
+## /counters needs two reads (/counters precisa de duas leituras)
 O contador é computado preguiçosamente: a primeira chamada num endereço frio
 devolve 0. Medi 51 de 74 endereços mudando na segunda leitura, um deles de
 0 para 145.793. Contagem menor que a janela é impossível, então isso vira
 prova de contador frio e dispara releitura.
 
-## Diversidade e ritmo saíram do score
+## Diversity and cadence left the score (Diversidade e ritmo saíram do score)
 Medidos na calibração, não separam os grupos. Ritmo está invertido: wallet
 nova de bot dispara 150 transações num dia, endereço antigo fica dormente.
 Diversidade, do jeito que eu media, conta transações de ENTRADA, e qualquer
 um pode spammar um endereço para mudar o número dele. Ou seja: não é só que
 não separa, é que mede a coisa errada.
 
-## O estrato não foi recomposto para melhorar os limiares
+## The stratum was not recomposed to improve the thresholds (O estrato não foi recomposto para melhorar os limiares)
 Escolher os endereços established pela diversidade garantiria que a
 diversidade separasse. Isso é calibrar no próprio alvo.
 
-## Média geométrica, não soma ponderada
+## Geometric mean, not a weighted sum (Média geométrica, não soma ponderada)
 Um eixo fraco não pode ser compensado por um forte. Caso concreto: wallet
 fresca fundada por exchange tem funding 1.000, idade 0, volume 0. Com soma
 teria tirado ~400 e passado. Com produto, tirou 60 e foi barrada.
 
-## Compliance gate separado do score
+## Compliance gate separate from the score (Compliance gate separado do score)
 Endereço sancionado não recebe nota baixa, recebe bloqueio. Score 0, gated.
 É um portão, não uma nota. A lista vem da SDN do OFAC, publicação de 07/08/2026.
 
-## Sem contrato verificador on-chain na v0.1
+## No on-chain verifier contract in v0.1 (Sem contrato verificador on-chain na v0.1)
 A assinatura EIP-191 já é verificável off-chain em 3 linhas. Contrato só cria
 valor quando outro CONTRATO consome o atestado, e nesse dia o formato certo é
 EIP-712. Fazer agora viraria retrabalho.
 
-## Sem LLM em nenhum ponto
+## No LLM at any point (Sem LLM em nenhum ponto)
 Determinístico é auditável e reproduzível. Um provedor pode conferir a conta.
 
-## O gate roda antes do middleware de pagamento
+## The gate runs before the payment middleware (O gate roda antes do middleware de pagamento)
 Se rodasse depois, o agente rejeitado já teria pago. A ordem é o que sustenta
 a frase "refused before settlement: paid nothing". O gate não confere a
 assinatura sobre o campo `from` porque o middleware de pagamento a jusante
 confere: um `from` forjado nunca liquida.
 
-## O 403 devolve o atestado assinado inteiro
+## The 403 returns the whole signed attestation (O 403 devolve o atestado assinado inteiro)
 A recusa é ela própria verificável. O agente rejeitado pode conferir a
 assinatura e ver por que foi barrado, sem precisar confiar na minha palavra.
 
-## Blockscout fora do ar: o GATE devolve 503, fail-closed
+## Blockscout down: the GATE answers 503, fail-closed (Blockscout fora do ar: o GATE devolve 503, fail-closed)
 Se a fonte de dados cai, o vendedor não serve às cegas. A falha acontece
 antes da liquidação, então ninguém paga por um veredito que não existe.
 Isso vale para o gate, e só para ele. O servidor público de /verify não
 fail-closed: degrada para fixture rotulada, ou devolve 502 quando não há
 fixture para o endereço. A assimetria é deliberada e está na última entrada.
 
-## unknown passa, só suspicious bloqueia
+## unknown passes, only suspicious blocks (unknown passa, só suspicious bloqueia)
 Três vereditos, não dois. Os casos claros têm decline automático; o meio
 ambíguo é devolvido ao vendedor com o header X-KYA-Verdict, porque forçar uma
 decisão binária num caso ambíguo é pior que não decidir.
 
-## A UI não duplica nenhum limiar
+## The UI duplicates no threshold (A UI não duplica nenhum limiar)
 Cortes, pesos e a linha "suspicious <= 84 < unknown < 193 <= trusted" vêm do
 server via ?explain=1. Se o config.ts mudar, a tela acompanha. A interface é
 descartável; a API não é.
 
-## Fixtures são capturas datadas de endereços vivos
+## Fixtures are dated captures of live addresses (Fixtures são capturas datadas de endereços vivos)
 Os três endereços da demo continuam transacionando. A fixture congela o que a
 demo mostra, e o arquivo carrega captured_at. Não é mock: é a resposta real
 da API, guardada com data. O modo online roda contra a chain e está no repo.
 
-## Nada velho é servido sem rótulo
+## Nothing stale is served unlabelled (Nada velho é servido sem rótulo)
 O modo offline resolve em três passos: a fixture commitada, depois
 data/cache/<endereço>.json EM QUALQUER IDADE, e só então 404 (503 no gate).
 A garantia não é que dado velho nunca é servido (o passo dois serve uma captura
@@ -85,7 +93,7 @@ o X-KYA-Source nomeia a fonte que respondeu e evidence.fetched_at carrega o
 instante em que a chain foi lida. Resposta inventada, essa não existe em passo
 nenhum: sem fixture e sem cache é erro, não silêncio.
 
-## Os labels de CEX vêm do Dune Spellbook, em commit pinado
+## The CEX labels come from Dune Spellbook, at a pinned commit (Os labels de CEX vêm do Dune Spellbook, em commit pinado)
 A heurística de exchange (EOA com mais de 1M de transações na Base que financiou
 pelo menos 3 das 74 wallets amostradas) sempre teve o mesmo buraco: ela mede
 escala custodial, não identidade. Agora existe fonte. O modelo `cex_evms.addresses`
@@ -129,7 +137,7 @@ pode estar errada. E um hit prova a identidade do ENDEREÇO, não que o pagador
 seja dono da conta na exchange. Qualquer um pode receber uma transferência não
 solicitada.
 
-## O endereço established da demo foi trocado após auditoria de tags
+## The demo's established address was swapped after a tag audit (O endereço established da demo foi trocado após auditoria de tags)
 O `0x2CfF890f0378a11913B6129B2E97417a2c302680` saiu da demo. Auditoria de
 terceiros na Blockscout: tags `Fake_Phishing3515158` e `NEAR Intents: Treasury`,
 risk score 75.5 do DD.xyz, com flags de FLAGGED ADDRESS e WASH TRADER. Mostrar
@@ -154,7 +162,7 @@ histórico on-chain não vê tag de phishing nem risk score de terceiros. Isso �
 limite real da v0.1, não um detalhe de apresentação, e a lista de sanções do OFAC
 é o único sinal de reputação externa que o gate consome hoje.
 
-## D17: o sinal de contraparte foi avaliado e adiado
+## D17: the counterparty signal was evaluated and deferred (o sinal de contraparte foi avaliado e adiado)
 A ideia era um quarto eixo: com quantas contrapartes distintas o endereço
 interagiu, medido contra a popularidade real dos contratos na chain. A fonte
 candidata era `/stats/hot-smart-contracts` da Blockscout Pro. Medido em 17/08:
@@ -169,7 +177,7 @@ por trás.
 Três eixos com fonte citada valem mais que quatro com um mal medido. Adiado, não
 descartado: volta quando existir uma fonte que responda.
 
-## D18: checagem de fatos externos, 18/08/2026
+## D18: external fact-check, 18/08/2026 (checagem de fatos externos)
 O pitch foi para checagem de fatos e três afirmações sobre o mundo externo
 estavam erradas ou imprecisas. Nada aqui toca medição minha: limiares, scores,
 calibração, os 30 endereços e as fixtures seguem como estavam. O que muda é o
@@ -217,7 +225,7 @@ tal: não é revisado por pares e não deve ser citado como se fosse. Se sustent
 é o argumento mais forte a favor de reputação derivada de histórico on-chain em
 vez de reputação declarada por pares.
 
-## D19: correção ao D18 (o x402scan TEM página de comprador), 22/08/2026
+## D19: correction to D18, x402scan DOES have a buyer page, 22/08/2026 (correção ao D18: o x402scan TEM página de comprador)
 A afirmação de que o x402scan não tem perfil de comprador, repetida no README,
 no PLAN.md e no próprio D18, é FALSA. A rota `/buyer/<address>` existe desde
 março de 2026, responde 200, e está no código-fonte aberto do x402scan.
@@ -244,7 +252,7 @@ Verificar a existência de uma rota é um curl. A lição é que negativa sobre
 produto de terceiro precisa da mesma verificação que uma positiva, e é mais
 perigosa, porque é a que costuma virar argumento de venda.
 
-## Custo de operação: o tier gratuito já cobre a v0.1
+## Operating cost: the free tier already covers v0.1 (Custo de operação: o tier gratuito já cobre a v0.1)
 O tier Free da Blockscout Pro dá 100.000 créditos por DIA (confirmado na
 página de planos em 18/08/2026), a 20 créditos por chamada e 5 requisições
 por segundo. São 5.000 chamadas por dia; no pior caso de 7 chamadas por
@@ -256,7 +264,7 @@ de dados não é o gargalo econômico deste produto. O gargalo é adoção, não
 infraestrutura.
 
 
-## O deploy público: orçamento diário, degradação rotulada, attester separado
+## The public deployment: daily budget, labelled degradation, separate attester (O deploy público: orçamento diário, degradação rotulada, attester separado)
 A v0.1 subiu numa URL pública porque a banca pediu. Uma URL pública muda o modelo
 de ameaça: /verify não tem autenticação, nada a montante limita quem pergunta, e
 cada verify ao vivo gasta 6 chamadas (7 com contador frio) de uma cota medida. O
