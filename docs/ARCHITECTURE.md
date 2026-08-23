@@ -141,13 +141,14 @@ made. The demo shows exactly this: the fresh wallet signs a real payment (signin
 is offline, a zero-balance wallet can do it) and is refused before any USDC
 moves.
 
-**Three things the gate deliberately does not do:**
+**Four things the gate does not do — three by design, one a known limitation:**
 
 | Situation | What the gate does | Why |
 |---|---|---|
 | No `X-PAYMENT` header | `next()` | There is no payer to check yet. The payment middleware must be allowed to answer `402` with the price, which is how the client learns what to pay. |
 | Header present, no decodable payer | `next()` | The gate never invents a verdict for a payer it cannot name. The payment middleware rejects it as malformed. |
 | Payer present | Reads `payload.authorization.from` **without checking the signature over it** | The payment middleware behind it does check. A forged `from` fails there and never settles, so the only address that can be charged is the one that signed. Duplicating the check buys no security and costs a crypto dependency in the hot path. |
+| **A forged header**: 40 hex characters in `from`, no valid signature over them | ⚠️ Verifies that address's reputation **in full**, at the seller's expense, before anything downstream ever looks at the signature | **A known limitation, not a design choice** — and the cost of the row above. The forgery cannot settle, but it has already spent 6 Blockscout calls on the seller's own key by the time it is rejected. (Six, not seven: an address with no history reports a counter consistent with an empty window, so there is no re-read.) At the Free tier's 5,000 calls a day that is roughly **833 forged headers to drain the quota**, after which the gate fails closed with `503` for every legitimate buyer until the UTC day rolls over — a cheap denial of service against the seller, costing the attacker nothing but bandwidth. The daily budget in `src/server.ts` does not cover this: it guards `GET /verify`, not the gate. The mitigation is to recover the EIP-3009 signer with viem and drop the request when it does not match `from` — entirely offline, no new dependency since viem is already in the tree, and it moves the check to before the spend instead of after. **Not in v0.1.** |
 
 **Verdict handling:** only `suspicious` blocks. `trusted` and `unknown` both pass
 through with an `X-KYA-Verdict` header, and the gate stores the full verification
