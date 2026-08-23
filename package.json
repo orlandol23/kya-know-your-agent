@@ -19,6 +19,7 @@
     "demo:agents:offline": "tsx demo/agents.ts --offline",
     "collect": "tsx scripts/collect.ts",
     "capture": "tsx scripts/capture.ts",
+    "test": "tsx --test",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
