@@ -79,8 +79,8 @@ da API, guardada com data. O modo online roda contra a chain e está no repo.
 ## Nada velho é servido sem rótulo
 O modo offline resolve em três passos: a fixture commitada, depois
 data/cache/<endereço>.json EM QUALQUER IDADE, e só então 404 (503 no gate).
-A garantia não é que dado velho nunca é servido — o passo dois serve uma captura
-de qualquer idade em vez de falhar — e sim que ele nunca é servido SEM RÓTULO:
+A garantia não é que dado velho nunca é servido (o passo dois serve uma captura
+de qualquer idade em vez de falhar) e sim que ele nunca é servido SEM RÓTULO:
 o X-KYA-Source nomeia a fonte que respondeu e evidence.fetched_at carrega o
 instante em que a chain foi lida. Resposta inventada, essa não existe em passo
 nenhum: sem fixture e sem cache é erro, não silêncio.
@@ -192,8 +192,8 @@ do comprador vale a pena resolver.
 
 **O x402scan não é o explorador oficial do x402.** É da Merit Systems, open
 source. É o explorador principal do ecossistema, não o oficial, e é assim que
-deve ser dito. ⚠️ A frase que seguia aqui — "não existe perfil de comprador nem
-endpoint público para consultar um" — é FALSA e está corrigida no D19.
+deve ser dito. ⚠️ A frase que seguia aqui, "não existe perfil de comprador nem
+endpoint público para consultar um", é FALSA e está corrigida no D19.
 
 **Denylist de mixer é escolha de política, não exigência do OFAC.** O Tornado
 Cash saiu da lista SDN em março de 2025. Tratar "OFAC SDN e mixers conhecidos"
@@ -217,7 +217,7 @@ tal: não é revisado por pares e não deve ser citado como se fosse. Se sustent
 é o argumento mais forte a favor de reputação derivada de histórico on-chain em
 vez de reputação declarada por pares.
 
-## D19: correção ao D18 — o x402scan TEM página de comprador, 22/08/2026
+## D19: correção ao D18 (o x402scan TEM página de comprador), 22/08/2026
 A afirmação de que o x402scan não tem perfil de comprador, repetida no README,
 no PLAN.md e no próprio D18, é FALSA. A rota `/buyer/<address>` existe desde
 março de 2026, responde 200, e está no código-fonte aberto do x402scan.

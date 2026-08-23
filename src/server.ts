@@ -17,8 +17,8 @@
  * `issued_at`; `evidence.fetched_at` says when the chain was actually read.
  *
  * DEGRADATION. A public deployment reads a metered API, so a live read that
- * cannot be served — because Blockscout is unavailable, or because the day's
- * budget of live verifies is spent — falls back to a committed fixture instead
+ * cannot be served (because Blockscout is unavailable, or because the day's
+ * budget of live verifies is spent) falls back to a committed fixture instead
  * of failing. The fallback is never silent: X-KYA-Source says `fixture` (or
  * `cache`) and X-KYA-Degraded says which of the two reasons applied. With no
  * fixture for that address the budget case answers 429 (with Retry-After until
@@ -194,7 +194,7 @@ function sendVerification(
  * two reasons deserve different answers. A spent budget is this service
  * rate-limiting the caller: 429, with how long until it renews. An unreachable
  * Blockscout is an upstream failure, so `cause` is rethrown and the caller's
- * handler answers 502 with the message that actually explains it — telling
+ * handler answers 502 with the message that actually explains it: telling
  * someone who made one request that they made too many, or that a fixture is
  * missing when the real problem is upstream, would both be lies.
  */
@@ -206,7 +206,7 @@ async function degradeToReplay(
 ): Promise<void> {
   const reason: DegradedReason = cause === null ? 'budget' : 'upstream'
   if (cause !== null) {
-    console.warn(`[verify] ${String(input)}: ${cause.message} — replaying a committed capture`)
+    console.warn(`[verify] ${String(input)}: ${cause.message}, replaying a committed capture`)
   }
 
   try {

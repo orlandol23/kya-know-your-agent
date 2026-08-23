@@ -4,7 +4,7 @@
 > sistema faz hoje está no `README.md`, em `docs/ARCHITECTURE.md` e em
 > `DECISIONS.md`; onde este plano divergir deles, eles é que valem. As seções de
 > cronograma, plano de commits, rascunho de README e preparação de apresentação
-> foram removidas — o arquivo continua aqui porque código e dados citam suas
+> foram removidas. O arquivo continua aqui porque código e dados citam suas
 > seções de calibração pelo número.
 
 ```
@@ -144,9 +144,9 @@ maturity         0.35      ✅ tem          idade. Separa 176x. Forjável espera
 volume           0.25      ✅ tem          contagem. Separa 41x. Barato de forjar
                                            com self-sends, por isso o menor peso.
 ---
-contracts         —        roadmap         contrapartes são protocolos rotulados?
-ratings           —        roadmap         camada humana, só quem usou pode votar.
-familiarity       —        roadmap         contata vendedores x402 com frequência.
+contracts         n/a      roadmap         contrapartes são protocolos rotulados?
+ratings           n/a      roadmap         camada humana, só quem usou pode votar.
+familiarity       n/a      roadmap         contata vendedores x402 com frequência.
 ```
 
 **Diversidade e ritmo saem da média geométrica.** A calibração mostrou que não separam os grupos (ver c1). Ritmo vira `cadence_penalty` multiplicativa, que é onde ele sempre pertenceu. Diversidade continua sendo **coletada e exibida** no atestado como evidência, mas com peso zero, e isso é declarado. É honesto e é um bom momento de pitch: *"medi e dois sinais não separavam, então não entram na conta."*

@@ -1,13 +1,13 @@
-# KYA — Positioning, monetization, and one correction
+# KYA: Positioning, monetization, and one correction
 
 > Written for three questions from the judging panel that did not get a full
 > answer on the call:
 >
 > - *"What's your competitive advantage? That was the main question that I kept
->   in my head throughout the presentation"* — Coinbase already screens as a
+>   in my head throughout the presentation"*: Coinbase already screens as a
 >   facilitator, and there are good companies flagging addresses.
 > - *"Lack of data, principally on the idea of monetization."*
-> - *"Are the scoring rules on-chain?"* — which I answered wrongly on the call.
+> - *"Are the scoring rules on-chain?"*, which I answered wrongly on the call.
 >   §3 retracts that answer in writing.
 >
 > Every number below is either read from this repository or explicitly labelled
@@ -31,7 +31,7 @@ hops, they maintain proprietary attribution, they carry the regulatory weight,
 and they have been doing it for years. KYA does not compete on that question and
 would lose if it tried.
 
-KYA consumes one of the same inputs — the OFAC SDN list — and it consumes it in
+KYA consumes one of the same inputs (the OFAC SDN list) and it consumes it in
 the least clever way possible: as a **binary gate that sits outside the score**.
 An address on the list, or funded by a listed address or a known mixer, is not
 given a low score. It is not scored at all: `score: 0`, `gated: true`, and the
@@ -40,12 +40,12 @@ It is one static list, refreshed by hand, with no multi-hop tracing behind it.
 On the sanctions question, the incumbents are simply better, and the honest
 framing is that KYA defers to them.
 
-### 1.2 The case nobody blocks — measured, not asserted
+### 1.2 The case nobody blocks: measured, not asserted
 
 On **18 August 2026** I ran the demo addresses through **SENTINEL**, the
 compliance facilitator built by **Mauritius Oracle**: **11 screening layers with
 multi-hop fund tracing**. Its block threshold of **76 is declared in SENTINEL's
-own response payload** — it is not a number I inferred from the results.
+own response payload**: it is not a number I inferred from the results.
 
 The endpoint is public and free, so **anyone can reproduce this with one curl**,
 no key and no account:
@@ -58,7 +58,7 @@ curl https://mru-oracle.com/facilitator/kya/0xeB94Dd34439e017EBa695678265e44Ea12
 ```
 
 Their route is literally `/facilitator/kya/`. The acronym collides with this
-project's name and the two are unrelated — worth knowing before a judge clicks
+project's name and the two are unrelated, worth knowing before a judge clicks
 the link and asks.
 
 What those two calls returned on 18 August 2026:
@@ -70,19 +70,19 @@ What those two calls returned on 18 August 2026:
 
 **SENTINEL is not blind to this, and the comparison is worth making precisely.**
 Its own payload returns `riskBand: "elevated"`, `recommendation:
-"PROCEED_WITH_CAUTION"` and `blocked: false` — and the largest single
+"PROCEED_WITH_CAUTION"` and `blocked: false`, and the largest single
 contributor to both scores is **maturity**, on addresses with almost no age at
 all. It is looking at the same thing KYA looks at, and it says so.
 
 The control case is the fourth demo address, `0x098B…2f96`, which is on the OFAC
-SDN list as Lazarus Group. KYA gates it — `score: 0`, `gated: true` — and so would
+SDN list as Lazarus Group. KYA gates it (`score: 0`, `gated: true`) and so would
 any sanctions screen worth the name. That is the case where the incumbents are
 already right and KYA claims nothing new. The two rows above are the whole
 argument.
 
 **Both wallets are clean, and that is precisely the point.** The facilitator is
 asked "is this money dirty?" and answers, correctly, *no*. There is no tainted
-source to trace, because there is no source at all — a wallet created seven days
+source to trace, because there is no source at all: a wallet created seven days
 ago has nothing to trace, and a wallet with zero transactions has less than
 nothing. Multi-hop tracing over an empty history returns an empty result, and an
 empty result reads as *clean*.
@@ -91,12 +91,12 @@ The seller's actual question is different: **"has this agent ever done anything?
 For a seller taking sub-dollar payments from an autonomous buyer, the expensive
 failure is not usually laundered money. It is a wallet minted five minutes ago to
 burn a free tier, abuse a rate limit, scrape a paid model, or walk away from a
-dispute — and then be discarded and replaced by the next one. Zero history is not
+dispute, and then be discarded and replaced by the next one. Zero history is not
 a compliance finding. It is a *reputation* finding, and the two are answered
 differently: SENTINEL surfaces it as an advisory band and a recommendation a
 human is expected to read, while KYA turns the same observation into a
 calibrated verdict that a seller's middleware acts on before settlement. The
-observation is shared. What differs is whether anything happens automatically —
+observation is shared. What differs is whether anything happens automatically:
 `PROCEED_WITH_CAUTION` is not a decision a payment path can execute, and `403`
 is.
 
@@ -114,7 +114,7 @@ Three limits on that claim, stated up front:
   This is not a defect in their product. It is a different question that their
   product is not asked to decide.
 
-### 1.3 It is not a facilitator — it is middleware in front of one
+### 1.3 It is not a facilitator: it is middleware in front of one
 
 KYA is one Express middleware. It mounts **in front of** whatever payment
 middleware and whatever facilitator the seller already runs:
@@ -132,7 +132,7 @@ The consequences are structural, not marketing:
 - **It composes with Coinbase's facilitator rather than competing with it.** A
   seller can run both. KYA answers "has this agent got a track record?"; the
   facilitator answers "is this payment good and is this money clean?"
-- **The worst KYA failure is a wrong or unavailable verdict** — never a lost
+- **The worst KYA failure is a wrong or unavailable verdict**, never a lost
   payment. The gate fails closed, so an outage costs a refused request, not a
   settled one.
 - **A refusal costs the buyer nothing.** The `403` lands before settlement, so the
@@ -141,7 +141,7 @@ The consequences are structural, not marketing:
 
 ### 1.4 Against the x402 reputation scorers: a cold-start asymmetry
 
-History-based scoring of x402 payers already exists — **AgentQuay, DJD
+History-based scoring of x402 payers already exists: **AgentQuay, DJD
 AgentScore, ACHIVX, AgentKarma, Agent402**. They score the wallet's **x402
 payment history**.
 
@@ -153,18 +153,18 @@ That produces a clean asymmetry in both directions:
 
 | Wallet | An x402-history scorer sees | KYA sees |
 |---|---|---|
-| 662.73 days on Base, 51,666 transactions, exchange-funded, but has never made an x402 payment | **cold start** — no payment history to score | **857, trusted** |
-| Created a week ago, but has already made a handful of x402 payments | some payment history to score | **suspicious** — 6.99 days and 42 transactions scores 60 |
+| 662.73 days on Base, 51,666 transactions, exchange-funded, but has never made an x402 payment | **cold start**: no payment history to score | **857, trusted** |
+| Created a week ago, but has already made a handful of x402 payments | some payment history to score | **suspicious**: 6.99 days and 42 transactions scores 60 |
 
 The first row is the one that matters commercially: the population of wallets
 with a long Base history vastly exceeds the population with an x402 payment
 history, and x402 is young enough that "no prior x402 payments" describes almost
 every wallet that has not yet arrived. A scorer that can only read x402 history
-has nothing to say about a new customer on their first purchase — which is
+has nothing to say about a new customer on their first purchase, which is
 exactly the moment a seller needs an answer.
 
-The credential systems — Visa TAP, Mastercard Verifiable Intent, Skyfire KYAPay,
-Trulioo/PayOS Digital Agent Passport, ERC-8004 — sit in a third category: they
+The credential systems (Visa TAP, Mastercard Verifiable Intent, Skyfire KYAPay,
+Trulioo/PayOS Digital Agent Passport, ERC-8004) sit in a third category: they
 issue an identity to the agent and need an acceptor on the other side. KYA needs
 no issuer, no registry and no enrollment; it reads what the wallet already did.
 (ERC-8004 also ships a Reputation Registry. A 2026 preprint measuring it as
@@ -176,7 +176,7 @@ not peer-reviewed, and should be cited as one.)
 
 **There is no data advantage here, and claiming one would be false.**
 
-The history KYA reads is public. It is on Base. Anyone can read it — Blockscout's
+The history KYA reads is public. It is on Base. Anyone can read it: Blockscout's
 free tier is enough to start, and the raw data is available to every participant
 in this market equally. **If Coinbase decided to score payers by their Base
 history, it could, and it would ship faster than I can.** It already sits in the
@@ -191,7 +191,7 @@ What actually exists is smaller, and worth naming precisely:
    two of the five signals did not separate the set, and instead of quietly
    dropping them or recomposing the sample until they worked, they carry declared
    weight zero and are still reported as evidence. That reflex is reproducible by
-   a competitor — it is just not usually reproduced.
+   a competitor: it is just not usually reproduced.
 2. **The integration position.** KYA is the layer a seller integrates **once**, in
    front of whatever facilitator they use. If a seller mounts it and later
    switches facilitators, the gate does not move. That is a real position, but it
@@ -206,7 +206,7 @@ nobody else can reach.
 
 **The merchant test is what would tell us whether thin is enough**: put the gate
 in front of a real seller's paid endpoint, with real agent traffic, and find out
-whether the seller keeps it switched on. That answers three things at once —
+whether the seller keeps it switched on. That answers three things at once:
 whether the refusals are the right refusals, whether the `unknown` band is usable
 as a policy knob, and whether a seller would pay for it. Until that runs, "thin
 moat" is the accurate description and any stronger claim would be one I could not
@@ -231,7 +231,7 @@ holding the risk is the party buying the answer.
 
 It is also why KYA is middleware rather than a facilitator. A facilitator has to
 be chosen instead of another facilitator. A gate is mounted in front of the one
-already chosen — which is a much smaller decision to ask a seller to make.
+already chosen, which is a much smaller decision to ask a seller to make.
 
 ### 2.2 Cost: the data is nearly free, and stays nearly free at scale
 
@@ -263,14 +263,14 @@ monthly allowance, the arithmetic is:
 ```
 
 That is roughly **seven thousandths of one cent** per verification, and it does
-not degrade with scale — cost per verify is constant in the size of the address,
+not degrade with scale: cost per verify is constant in the size of the address,
 because the 6 calls are constant in the size of the address. A 51,666-transaction
 wallet and a 42-transaction wallet cost the same to check.
 
 **The conclusion that matters:** reading the chain is not the economic
 constraint on this product. At any volume a seller would plausibly generate, the
 data cost rounds to nothing next to a single engineer-hour. **The bottleneck is
-adoption, not infrastructure** — and a business plan for KYA is a distribution
+adoption, not infrastructure**, and a business plan for KYA is a distribution
 plan, not a cost model.
 
 ### 2.3 What is not decided: the price
@@ -285,7 +285,7 @@ aesthetics.
 
 The order is deliberate: **the merchant test comes first, pricing comes after.**
 What a seller will pay depends on what the gate is worth to them, and what it is
-worth to them depends on how much abuse it actually refuses in their traffic —
+worth to them depends on how much abuse it actually refuses in their traffic,
 which is a measurement I do not have yet and cannot honestly estimate. The cost
 side is settled (§2.2: effectively zero, at any scale worth discussing), so
 pricing is entirely a question of demonstrated value, and demonstrated value is
@@ -307,20 +307,20 @@ measured ones is reproducible with one command, and the per-request arithmetic
 ships in the API response.
 
 The correct answer to the question actually asked is two sentences:
-**No, the scoring does not execute on-chain — it is computed off-chain in
+**No, the scoring does not execute on-chain: it is computed off-chain in
 TypeScript. And yes, every rule it uses is public, committed and reproducible.**
 
 ### 3.2 Where every rule lives
 
 | What | File | What it holds |
 |---|---|---|
-| ZERO/FULL thresholds per axis | `src/config.ts:78` | `ageDays 3.03 → 532.09`, `txCount 54.75 → 2236.25` — **MEASURED** |
-| Axis weights | `src/config.ts:88` | `funding 0.40`, `maturity 0.35`, `volume 0.25` — **CHOSEN** |
-| Fallback weights without funding | `src/config.ts:99` | `maturity 0.58`, `volume 0.42` — **CHOSEN** |
-| Funding class levels | `src/config.ts:115` | `exchange 1.0`, `unknown 0.35`, `none 0.05`, `mixer 0`, `sanctioned 0` — **CHOSEN** |
-| Scale, floor, confidence constant | `src/config.ts:124` | `scale 1000`, `eps 0.02`, `confidenceK 25` — **CHOSEN** |
-| Burst penalty | `src/config.ts:137` | `burstRatio > 50 → ×0.85` — **CHOSEN** |
-| Verdict cutoffs | `src/config.ts:160` | `suspiciousMax 84`, `trustedMin 193` — **MEASURED** |
+| ZERO/FULL thresholds per axis | `src/config.ts:78` | `ageDays 3.03 → 532.09`, `txCount 54.75 → 2236.25` (**MEASURED**) |
+| Axis weights | `src/config.ts:88` | `funding 0.40`, `maturity 0.35`, `volume 0.25` (**CHOSEN**) |
+| Fallback weights without funding | `src/config.ts:99` | `maturity 0.58`, `volume 0.42` (**CHOSEN**) |
+| Funding class levels | `src/config.ts:115` | `exchange 1.0`, `unknown 0.35`, `none 0.05`, `mixer 0`, `sanctioned 0` (**CHOSEN**) |
+| Scale, floor, confidence constant | `src/config.ts:124` | `scale 1000`, `eps 0.02`, `confidenceK 25` (**CHOSEN**) |
+| Burst penalty | `src/config.ts:137` | `burstRatio > 50 → ×0.85` (**CHOSEN**) |
+| Verdict cutoffs | `src/config.ts:160` | `suspiciousMax 84`, `trustedMin 193` (**MEASURED**) |
 | The formula itself | `src/score.ts:108` | `scoreAddress()`: normalization, EPS floor, weighted geometric mean in log space, penalty, confidence, and the compliance gate that runs before all of it |
 | Cutoffs applied | `src/verdict.ts:29` | `verdictFor()`: ≤ 84 suspicious, ≥ 193 trusted, between = unknown |
 | The reference set | `data/signals.csv` | 30 rows, committed on purpose: the evidence behind every calibrated number |
@@ -337,7 +337,7 @@ the file were hidden.
 
 ### 3.3 Reproduce it yourself, three ways
 
-**One — rerun the calibration.** No API key, no network:
+**One: rerun the calibration.** No API key, no network:
 
 ```
    npx tsx scripts/calibrate.ts
@@ -359,15 +359,15 @@ It reads `data/signals.csv` and prints, among the rest:
 
 followed by a literal `export const VERDICT = { suspiciousMax: 84, trustedMin:
 193 }` block to paste into `src/config.ts`. **The threshold is an output of this
-repository, not an input.** The script does not write to `config.ts` — the number
+repository, not an input.** The script does not write to `config.ts`: the number
 is checked by eye and committed by hand, so the diff is visible.
 
 *(One caveat, so nobody is surprised: the separation ratios annotated in
-`src/config.ts` — `176x`, `41x`, `0.09x` — are hand-written notes, not script
+`src/config.ts` (`176x`, `41x`, `0.09x`) are hand-written notes, not script
 output. `calibrate.ts` prints ZERO and FULL, and the ratios are computed from
 them.)*
 
-**Two — ask the API for the arithmetic.** `GET /verify?address=0x…&explain=1`
+**Two: ask the API for the arithmetic.** `GET /verify?address=0x…&explain=1`
 returns `{ attestation, breakdown, source, captured_at }`, where `breakdown` is
 the entire unsigned computation: each axis with its raw `value`, its `normalized`
 value and its `weight`; the `geometric_mean`; the `penalty`; the `confidence` and
@@ -376,7 +376,7 @@ term of `score = 1000 · G · penalty · confidence`. It is exactly what the dem
 draws its explanation panel from, and it is enough to recompute the score by
 hand.
 
-**Three — read the reasons in any attestation.** Even without `explain=1`, every
+**Three: read the reasons in any attestation.** Even without `explain=1`, every
 attestation carries `reasons` in plain text with the thresholds inline:
 
 ```
@@ -404,7 +404,7 @@ short version:
   transaction history, let alone take percentiles over the last 150 of them.
   Moving the score on-chain would mean putting a trusted oracle in front of it,
   which relocates the trust rather than removing it.
-- Recalibration would become a deployment. Here it is a diff — which is what
+- Recalibration would become a deployment. Here it is a diff, which is what
   makes it cheap enough to publish the negative results and drop two signals to
   weight zero.
 - Gas per verification, charged against a $0.001 payment, is not a rounding error.
@@ -416,8 +416,8 @@ reproduce the numbers without asking me for anything.
 
 **What KYA provides instead of on-chain execution is verifiability of the
 output.** The attestation is serialized as canonical JSON (RFC 8785: keys sorted
-recursively, no whitespace) and signed EIP-191, so any consumer — in any
-language, and a Solidity contract via `ecrecover` — can confirm who issued it in
+recursively, no whitespace) and signed EIP-191, so any consumer (in any
+language, and a Solidity contract via `ecrecover`) can confirm who issued it in
 three lines, with no call to KYA:
 
 ```ts
@@ -428,7 +428,7 @@ if (signer !== KYA_ATTESTER) throw new Error('not signed by KYA')
 
 **And the limit of that guarantee, stated plainly:** a signature proves *who
 issued* an attestation. It does **not** prove that KYA ran the published code to
-produce it. What closes that gap is re-derivation, not cryptography — the rules
+produce it. What closes that gap is re-derivation, not cryptography: the rules
 are committed, the evidence is linked, so an auditor can recompute the score from
 the same inputs and compare. That is a weaker guarantee than on-chain execution
 and it should not be sold as an equivalent one. An EIP-712 attestation that a

@@ -1,4 +1,4 @@
-# KYA — Know Your Agent
+# KYA: Know Your Agent
 
 **On-chain reputation for AI agents that pay through x402.**
 
@@ -8,8 +8,8 @@ protocol (Chainalysis, Coinbase, agenteconomy.to), at a sub-dollar average
 ticket. The seller sees a valid payment and nothing else: no history, no way to
 tell an established agent from a wallet created five minutes ago.
 
-x402scan — the ecosystem's main explorer, built by Merit Systems and open
-source, not an official x402 project — has a per-address buyer page
+x402scan, the ecosystem's main explorer, built by Merit Systems and open
+source and not an official x402 project, has a per-address buyer page
 (`/buyer/<address>`, since March 2026) showing that address's x402 payment
 history. It has no public API for it, and it says nothing about a wallet's
 general Base history, which is the question KYA answers. So a wallet with two
@@ -45,13 +45,13 @@ which one answered.
 
 ## Documentation
 
-- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — how it works end to end: the
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md): how it works end to end. The
   path from agent to settlement, the six calls and four signals inside the gate,
   where each list comes from, and what is on-chain versus off-chain.
-- [`docs/POSITIONING.md`](docs/POSITIONING.md) — why this is not sanctions
+- [`docs/POSITIONING.md`](docs/POSITIONING.md): why this is not sanctions
   screening, who pays for it and what it costs to run, and where the scoring
   rules live.
-- [`DECISIONS.md`](DECISIONS.md) — why each choice was made, what was measured
+- [`DECISIONS.md`](DECISIONS.md): why each choice was made, what was measured
   versus chosen, and the corrections to things that turned out wrong.
 
 ![Two KYA panels side by side: the same address funder on both, scored 857 trusted and 60 suspicious](docs/ui.png)
@@ -93,7 +93,7 @@ Returns a signed attestation:
   recent cadence are also read from the chain and shown, but carry weight zero;
   cadence enters the score only as a burst penalty. No LLM anywhere in the
   pipeline.
-- **Calibrated, not invented — and explicit about which is which.** The
+- **Calibrated, not invented, and explicit about which is which.** The
   *thresholds* are MEASURED: derived from a labeled reference set of 30 real
   addresses, and `scripts/calibrate.ts` reproduces every one of them. The
   *weights* are CHOSEN: ranked by how expensive each axis is to forge, argued in
@@ -172,7 +172,7 @@ X-KYA-Verdict: suspicious
 `gated: true` means the compliance gate fired: the address was not scored, it
 was blocked. Two lists feed it, and they are not the same kind of obligation.
 The OFAC SDN list is a legal requirement. The mixer denylist is this project's
-own policy choice — Tornado Cash left the SDN list in March 2025, so no
+own policy choice: Tornado Cash left the SDN list in March 2025, so no
 sanctions regime obliges it. If reputation cannot be read the gate fails closed
 with 503, still before settlement.
 
@@ -251,8 +251,8 @@ honours `?offline=1` per request, and the UI has an *offline* toggle, so the
 demo flips to fixtures without a restart. In offline mode a request resolves in
 three steps: the committed fixture, then `data/cache/<address>.json` **at any
 age**, and only then a 404 (a 503 at the gate). So the guarantee is not that
-stale data is never served — step two will serve a capture of any age rather
-than fail — but that it is never served **unlabelled**: `X-KYA-Source` names
+stale data is never served (step two will serve a capture of any age rather
+than fail) but that it is never served **unlabelled**: `X-KYA-Source` names
 whichever source answered, and `evidence.fetched_at` carries the instant the
 chain was actually read.
 
@@ -279,7 +279,7 @@ fixture, in which case `X-KYA-Source` says `cache` rather than `fixture`.
 
 The replay is never silent: `X-KYA-Source` says which source answered,
 `X-KYA-Degraded` says why it stood in for a live read, and
-`evidence.fetched_at` still carries the capture instant — so a replay cannot
+`evidence.fetched_at` still carries the capture instant, so a replay cannot
 pass itself off as a fresh read even if a caller ignores both headers.
 
 Independent of the address: a zero-transaction address is `suspicious` with score
@@ -291,10 +291,10 @@ Degrading is right for `/verify`, which is a read and settles nothing, and wrong
 for the gate. The retry budget is sized for a live demo; a longer outage is what
 `--offline` is for.
 
-`npm test` covers five things — canonical serialization and signature recovery,
+`npm test` covers five things (canonical serialization and signature recovery,
 the four fixture verdicts, the cutoffs at exactly 84/85/192/193, the payment-header
 parser against nineteen degenerate inputs, and a gate `403` leaving the payment
-middleware at zero calls — and deliberate mutations to `config.ts`, `verdict.ts`,
+middleware at zero calls), and deliberate mutations to `config.ts`, `verdict.ts`,
 `attest.ts` and `gate.ts` are each caught by the expected test, with two parameters
 (`WEIGHTS.funding` and `THRESHOLDS.ageDays.zero`) invisible to the current fixture
 set because one is cancelled by an exchange funder at level 1.0 and the other by
@@ -302,8 +302,8 @@ the EPS floor.
 
 ## Related work
 
-Credential systems — Visa TAP, Mastercard Verifiable Intent, Skyfire
-KYAPay, Trulioo/PayOS Digital Agent Passport, ERC-8004 — issue an
+Credential systems (Visa TAP, Mastercard Verifiable Intent, Skyfire
+KYAPay, Trulioo/PayOS Digital Agent Passport, ERC-8004) issue an
 identity to the agent and require an acceptor. ERC-8004 also carries a
 Reputation Registry; a 2026 preprint measuring it as deployed found
 feedback rarely anchored in verifiable interaction and over ninety

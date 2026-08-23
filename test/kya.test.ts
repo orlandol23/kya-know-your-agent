@@ -143,7 +143,7 @@ test('payerFromPaymentHeader returns null on every degenerate input', () => {
 /* ── 5 ─────────────────────────────────────────────────────────────────────
  * The product claim: a 403 from the gate lands BEFORE the payment middleware,
  * so a refused agent pays nothing. Proven with a counter standing in for
- * x402-express, and with a passing verdict as the control — a counter that
+ * x402-express, and with a passing verdict as the control: a counter that
  * stays at zero because nothing downstream ever runs would prove nothing.
  */
 test('a 403 from the gate leaves the payment middleware at zero calls', async () => {

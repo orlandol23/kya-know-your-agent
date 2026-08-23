@@ -208,7 +208,7 @@
   function verdictClass(a) { return a.gated ? 'gated' : a.verdict }
   function verdictLabel(a) { return a.gated ? 'GATED' : a.verdict.toUpperCase() }
   const fmt = (n, d = 3) => Number(n).toFixed(d)
-  const day = (iso) => iso ? iso.slice(0, 10) : '—'
+  const day = (iso) => iso ? iso.slice(0, 10) : 'n/a'
 
   function renderResult(container, { attestation: a, breakdown: b, source, captured_at }) {
     const cls = verdictClass(a)
