@@ -54,9 +54,12 @@ confere: um `from` forjado nunca liquida.
 A recusa é ela própria verificável. O agente rejeitado pode conferir a
 assinatura e ver por que foi barrado, sem precisar confiar na minha palavra.
 
-## Blockscout fora do ar devolve 503, fail-closed
+## Blockscout fora do ar: o GATE devolve 503, fail-closed
 Se a fonte de dados cai, o vendedor não serve às cegas. A falha acontece
 antes da liquidação, então ninguém paga por um veredito que não existe.
+Isso vale para o gate, e só para ele. O servidor público de /verify não
+fail-closed: degrada para fixture rotulada, ou devolve 502 quando não há
+fixture para o endereço. A assimetria é deliberada e está na última entrada.
 
 ## unknown passa, só suspicious bloqueia
 Três vereditos, não dois. Os casos claros têm decline automático; o meio
@@ -246,3 +249,49 @@ isso. O plano seguinte custa US$49 por mês e dá 100 milhões de créditos.
 Consequência: o custo marginal por verificação é próximo de zero, e a fonte
 de dados não é o gargalo econômico deste produto. O gargalo é adoção, não
 infraestrutura.
+
+
+## O deploy público: orçamento diário, degradação rotulada, attester separado
+A v0.1 subiu numa URL pública porque a banca pediu. Uma URL pública muda o modelo
+de ameaça: /verify não tem autenticação, nada a montante limita quem pergunta, e
+cada verify ao vivo gasta 6 chamadas (7 com contador frio) de uma cota medida. O
+cache de 10 minutos só ajuda em repetição, então um chamador variando o endereço
+esgota os 100.000 créditos diários em cerca de 20 minutos, com um curl em laço.
+
+**Orçamento diário de verifies ao vivo.** Contador em processo, reset na virada
+do dia UTC, cap em KYA_DAILY_VERIFY_BUDGET (default 500). Só leitura que chega na
+Blockscout é cobrada: cache hit sai de graça, que é exatamente o tráfego dos
+endereços da demo sendo clicados. É orçamento, não cerca: requisições concorrentes
+podem passar pela checagem antes de qualquer uma cobrar, e o excesso fica limitado
+pelo número de requisições em voo. É por instância: duas réplicas têm dois
+orçamentos, que é o preço de manter o serviço sem estado compartilhado.
+
+**Degradar para fixture em vez de 502.** Estourado o orçamento, ou caída a
+Blockscout, o servidor devolve a captura commitada em vez de falhar. Uma URL de
+avaliação que responde 502 sob abuso não serve para nada, e a alternativa honesta
+já existia: fixture é captura datada de endereço vivo, não mock. Sem fixture para
+o endereço, os dois motivos se separam. Orçamento estourado é este serviço
+limitando o chamador: 429, com Retry-After até 00:00 UTC. Blockscout fora do ar é
+falha de upstream: 502, com a mensagem real do upstream, não com a do fixture que
+faltou. Dizer 429 a quem fez uma requisição só seria mentira.
+
+**Por que o /verify degrada e o gate NÃO.** O /verify é leitura e não liquida
+nada: responder com uma captura datada, rotulada como tal, é mais útil que um 502
+e não custa nada a quem consome. O gate decide se um agente PAGANTE vai ser
+servido; servir com evidência velha ali é o erro que o produto inteiro existe
+para evitar. Então gate.ts continua fail-closed em 503 e não ganhou nenhuma
+degradação. A assimetria é a linha entre informar e decidir.
+
+**Os dois headers.** X-KYA-Source (live | cache | fixture) diz qual fonte
+respondeu. X-KYA-Degraded (budget | upstream) diz por que uma réplica entrou no
+lugar de uma leitura ao vivo. Sem eles a degradação seria silenciosa, que é
+exatamente o que a entrada "sem fixture não há fallback silencioso" recusa. E
+evidence.fetched_at continua carregando o instante da captura, então um replay
+não se passa por leitura fresca nem para quem ignorar os dois headers.
+
+**O attester de produção é uma chave separada.** A chave que assina em produção
+não é a do .env local que aparece nos exemplos do README. O endereço dela está
+publicado no README, fora de banda, porque "verificável sem confiar nesta API" só
+significa alguma coisa se a API não for quem diz em quem confiar. A consequência
+é que uma resposta ao vivo traz um attester diferente do dos exemplos, e o README
+avisa disso em vez de deixar quem comparar achar que encontrou uma inconsistência.

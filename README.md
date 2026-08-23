@@ -43,6 +43,17 @@ the headers (`X-KYA-Source: fixture`, `X-KYA-Degraded: budget`). Every response
 carries `X-KYA-Source: live | cache | fixture`, so a caller can always tell
 which one answered.
 
+## Documentation
+
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — how it works end to end: the
+  path from agent to settlement, the six calls and four signals inside the gate,
+  where each list comes from, and what is on-chain versus off-chain.
+- [`docs/POSITIONING.md`](docs/POSITIONING.md) — why this is not sanctions
+  screening, who pays for it and what it costs to run, and where the scoring
+  rules live.
+- [`DECISIONS.md`](DECISIONS.md) — why each choice was made, what was measured
+  versus chosen, and the corrections to things that turned out wrong.
+
 ![Two KYA panels side by side: the same address funder on both, scored 857 trusted and 60 suspicious](docs/ui.png)
 
 *Same funder, confirmed against the same label set. 857 and 60.*
@@ -82,10 +93,14 @@ Returns a signed attestation:
   recent cadence are also read from the chain and shown, but carry weight zero;
   cadence enters the score only as a burst penalty. No LLM anywhere in the
   pipeline.
-- **Calibrated, not invented.** Thresholds are derived from a labeled reference
-  set of 30 real addresses. `scripts/calibrate.ts` reproduces every number.
-  Two of the five signals (diversity, cadence) did not separate the set and
-  carry weight zero; they are still reported as evidence.
+- **Calibrated, not invented — and explicit about which is which.** The
+  *thresholds* are MEASURED: derived from a labeled reference set of 30 real
+  addresses, and `scripts/calibrate.ts` reproduces every one of them. The
+  *weights* are CHOSEN: ranked by how expensive each axis is to forge, argued in
+  `src/config.ts` and not measured, because no labelled set available could
+  measure them. The file labels every constant as one or the other. Two of the
+  four signals (diversity, cadence) did not separate the set and carry weight
+  zero; they are still reported as evidence.
 - **Verifiable without trusting this API.** `evidence` links to the raw history
   on Blockscout. `signature` is EIP-191; any service checks it in 3 lines:
 
@@ -241,10 +256,34 @@ day, renewed daily, at 20 per call, so roughly 700 verifies per day; the
 second, process-wide, and treats 429 as "wait what `Retry-After` says", so two
 panels verifying at once queue for ~3 s instead of tripping the limit.
 
-Failure modes checked: zero-transaction address (suspicious, score 0), invalid
-address (400), Blockscout answering 500 (502 after one retry, ~1 s), Blockscout
-hanging (each call times out at 8 s; 2 attempts, so ~17 s before the 502). The
-retry budget is sized for a live demo; a longer outage is what `--offline` is for.
+**Failure modes checked.** Three of them answer differently depending on whether
+the address has a committed fixture, which is the thing worth trying against the
+live URL:
+
+| What goes wrong | One of the four fixture addresses | Any other address |
+|---|---|---|
+| Blockscout answers 500 (1 retry, ~1 s) | `200` + `X-KYA-Source: fixture` + `X-KYA-Degraded: upstream` | `502`, carrying the real upstream message |
+| Blockscout hangs (8 s timeout, 2 attempts, ~17 s) | the same labelled replay | `502` |
+| The day's live-verify budget is spent | `200` + `X-KYA-Source: fixture` + `X-KYA-Degraded: budget` | `429` + `Retry-After`, counting down to 00:00 UTC |
+
+`KYA_DAILY_VERIFY_BUDGET` (default 500) caps how many verifications a day may
+actually reach Blockscout. Only reads that reach it are charged, so a cache hit
+costs nothing. The replay also accepts a cache entry of any age when there is no
+fixture, in which case `X-KYA-Source` says `cache` rather than `fixture`.
+
+The replay is never silent: `X-KYA-Source` says which source answered,
+`X-KYA-Degraded` says why it stood in for a live read, and
+`evidence.fetched_at` still carries the capture instant — so a replay cannot
+pass itself off as a fresh read even if a caller ignores both headers.
+
+Independent of the address: a zero-transaction address is `suspicious` with score
+0 and is not an error, and an invalid address is `400` before any network call.
+
+**The gate does not degrade.** `kyaGate` is deciding whether to serve a *paying*
+agent, so it fails closed with `503` rather than answer from older evidence.
+Degrading is right for `/verify`, which is a read and settles nothing, and wrong
+for the gate. The retry budget is sized for a live demo; a longer outage is what
+`--offline` is for.
 
 ## Related work
 
