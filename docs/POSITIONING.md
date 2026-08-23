@@ -40,7 +40,7 @@ It is one static list, refreshed by hand, with no multi-hop tracing behind it.
 On the sanctions question, the incumbents are simply better, and the honest
 framing is that KYA defers to them.
 
-### 1.2 The case nobody catches — measured, not asserted
+### 1.2 The case nobody blocks — measured, not asserted
 
 On **18 August 2026** I ran the demo addresses through **SENTINEL**, the
 compliance facilitator built by **Mauritius Oracle**: **11 screening layers with
@@ -57,12 +57,22 @@ curl https://mru-oracle.com/facilitator/kya/0xBEabA203Ef49Ee2828b77b0B7E84839e76
 curl https://mru-oracle.com/facilitator/kya/0xeB94Dd34439e017EBa695678265e44Ea12E16B97
 ```
 
+Their route is literally `/facilitator/kya/`. The acronym collides with this
+project's name and the two are unrelated — worth knowing before a judge clicks
+the link and asks.
+
 What those two calls returned on 18 August 2026:
 
 | Address | What it is | SENTINEL (blocks at ≥ 76) | KYA (suspicious at ≤ 84) |
 |---|---|---|---|
-| `0xBEab…2787` | 6.99 days old, 42 transactions, funded by Binance 76 | **62 → passes** | **60 → suspicious** |
-| `0xeB94…6B97` | **zero transactions**, nothing ever funded it | **68 → passes** | **0 → suspicious** |
+| `0xBEab…2787` | 6.99 days old, 42 transactions, funded by Binance 76 | **62 → elevated, not blocked** | **60 → suspicious** |
+| `0xeB94…6B97` | **zero transactions**, nothing ever funded it | **68 → elevated, not blocked** | **0 → suspicious** |
+
+**SENTINEL is not blind to this, and the comparison is worth making precisely.**
+Its own payload returns `riskBand: "elevated"`, `recommendation:
+"PROCEED_WITH_CAUTION"` and `blocked: false` — and the largest single
+contributor to both scores is **maturity**, on addresses with almost no age at
+all. It is looking at the same thing KYA looks at, and it says so.
 
 The control case is the fourth demo address, `0x098B…2f96`, which is on the OFAC
 SDN list as Lazarus Group. KYA gates it — `score: 0`, `gated: true` — and so would
@@ -82,8 +92,13 @@ For a seller taking sub-dollar payments from an autonomous buyer, the expensive
 failure is not usually laundered money. It is a wallet minted five minutes ago to
 burn a free tier, abuse a rate limit, scrape a paid model, or walk away from a
 dispute — and then be discarded and replaced by the next one. Zero history is not
-a compliance finding. It is a *reputation* finding, and nothing in the screening
-stack is looking for it.
+a compliance finding. It is a *reputation* finding, and the two are answered
+differently: SENTINEL surfaces it as an advisory band and a recommendation a
+human is expected to read, while KYA turns the same observation into a
+calibrated verdict that a seller's middleware acts on before settlement. The
+observation is shared. What differs is whether anything happens automatically —
+`PROCEED_WITH_CAUTION` is not a decision a payment path can execute, and `403`
+is.
 
 Three limits on that claim, stated up front:
 
@@ -95,9 +110,9 @@ Three limits on that claim, stated up front:
   curl run today can legitimately return different numbers than the ones in the
   table. The point being made is about the *question* being asked, not about the
   quality of the answer.
-- Passing a clean wallet is the *correct* behaviour for a sanctions screen. This
-  is not a defect in their product. It is a different question that their product
-  is not asked.
+- Not blocking a clean wallet is the *correct* behaviour for a sanctions screen.
+  This is not a defect in their product. It is a different question that their
+  product is not asked to decide.
 
 ### 1.3 It is not a facilitator — it is middleware in front of one
 

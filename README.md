@@ -6,12 +6,42 @@ AI agents already buy services with stablecoins over x402: 7M+ transactions in
 a rolling 30-day window (x402scan, Aug 2026), and over 100M cumulative for the
 protocol (Chainalysis, Coinbase, agenteconomy.to), at a sub-dollar average
 ticket. The seller sees a valid payment and nothing else: no history, no way to
-tell an established agent from a wallet created five minutes ago. And x402scan
-— the ecosystem's main explorer, built by Merit Systems and open source, not an
-official x402 project — is built around sellers, origins and resources: there is
-no buyer profile and no public endpoint to query one.
+tell an established agent from a wallet created five minutes ago.
+
+x402scan — the ecosystem's main explorer, built by Merit Systems and open
+source, not an official x402 project — has a per-address buyer page
+(`/buyer/<address>`, since March 2026) showing that address's x402 payment
+history. It has no public API for it, and it says nothing about a wallet's
+general Base history, which is the question KYA answers. So a wallet with two
+years of Base activity and no prior x402 payment has an empty buyer page:
+to anything reading x402 history it is a cold start, and to KYA it is a track
+record.
 
 KYA answers the missing question: **who is this agent, and what has it done?**
+
+## Live
+
+    https://kya-know-your-agent-production.up.railway.app
+
+```bash
+curl "https://kya-know-your-agent-production.up.railway.app/verify?address=0xeA258496a9311Ffe29CDf920Ca0E8BB4B41c9F04"
+```
+
+**Production attester: `0xb6dFf3cf677d1567290be23C283171Accf89dEB7`.** Pin that
+address to check signatures. It is published here, out of band, on purpose:
+"verifiable without trusting this API" only means something if the API does not
+get to tell you whose signature to trust. It is **not** the attester in the
+examples below, which is a local development key.
+
+Hosted: `GET /verify` and the split-screen UI at `/`. Not hosted: the x402 gate
+demo under `demo/`, which is a seller process plus a payment facilitator and
+runs locally (see [Try it](#try-it)).
+
+Limits: 500 live verifications a day. Past that the service keeps answering, but
+replays a committed dated capture instead of reading Blockscout and says so in
+the headers (`X-KYA-Source: fixture`, `X-KYA-Degraded: budget`). Every response
+carries `X-KYA-Source: live | cache | fixture`, so a caller can always tell
+which one answered.
 
 ![Two KYA panels side by side: the same address funder on both, scored 857 trusted and 60 suspicious](docs/ui.png)
 

@@ -184,9 +184,8 @@ do comprador vale a pena resolver.
 
 **O x402scan não é o explorador oficial do x402.** É da Merit Systems, open
 source. É o explorador principal do ecossistema, não o oficial, e é assim que
-deve ser dito. O que sustenta o KYA continua de pé, e é o ponto que importa: ele
-é construído em torno de vendedores, origens e recursos; não existe perfil de
-comprador nem endpoint público para consultar um.
+deve ser dito. ⚠️ A frase que seguia aqui — "não existe perfil de comprador nem
+endpoint público para consultar um" — é FALSA e está corrigida no D19.
 
 **Denylist de mixer é escolha de política, não exigência do OFAC.** O Tornado
 Cash saiu da lista SDN em março de 2025. Tratar "OFAC SDN e mixers conhecidos"
@@ -209,6 +208,33 @@ apresentam comportamento sybil coordenado. É PREPRINT, e fica registrado como
 tal: não é revisado por pares e não deve ser citado como se fosse. Se sustentar,
 é o argumento mais forte a favor de reputação derivada de histórico on-chain em
 vez de reputação declarada por pares.
+
+## D19: correção ao D18 — o x402scan TEM página de comprador, 22/08/2026
+A afirmação de que o x402scan não tem perfil de comprador, repetida no README,
+no PLAN.md e no próprio D18, é FALSA. A rota `/buyer/<address>` existe desde
+março de 2026, responde 200, e está no código-fonte aberto do x402scan.
+
+A formulação correta, que é a que está agora no README:
+
+> x402scan has a per-address buyer page (`/buyer/<address>`, since March 2026)
+> showing that address's x402 payment history. It has no public API for it, and
+> it says nothing about a wallet's general Base history, which is the question
+> KYA answers.
+
+O argumento do KYA não dependia da frase errada, e fica mais preciso sem ela. O
+que o x402scan mostra é o histórico de PAGAMENTO x402 daquele endereço, por uma
+tela, sem API. O que o KYA lê é o histórico GERAL da Base, por uma API pública, e
+assina o resultado. São perguntas diferentes, e a diferença é exatamente o cold
+start: uma carteira com dois anos de Base e nenhum pagamento x402 tem página de
+comprador vazia. Para qualquer coisa que leia histórico x402 ela começa do zero;
+para o KYA ela é track record. O mesmo vale para os scorers de x402 listados no
+D18, e é o mesmo argumento, agora sem uma negativa falsa para sustentá-lo.
+
+Como o erro passou: a checagem do D18 confirmou o que o x402scan É (explorador da
+Merit Systems, não oficial) e não testou a afirmação sobre o que ele NÃO tem.
+Verificar a existência de uma rota é um curl. A lição é que negativa sobre
+produto de terceiro precisa da mesma verificação que uma positiva, e é mais
+perigosa, porque é a que costuma virar argumento de venda.
 
 ## Custo de operação: o tier gratuito já cobre a v0.1
 O tier Free da Blockscout Pro dá 100.000 créditos por DIA (confirmado na
