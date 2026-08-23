@@ -315,7 +315,7 @@ Trave os 2 endereços da demo dentro da calibração no D2. Para o lado do pagam
 Reputação é lida da Base **mainnet** (8453); o pagamento roda na Base **Sepolia** com a mesma chave, porque o endereço é o mesmo nas duas redes. Providencie no D4: USDC do faucet da Circle e ETH Sepolia para gas nas duas wallets.
 
 **5. UI engole D6 e D7.**
-Cap de 4h, HTML estático puro consumindo `/verify`, ordem de corte já definida na seção 2.
+Cap de 4h, HTML estático puro consumindo `/verify`. Ordem de corte: animações primeiro, depois settlement real.
 
 **6. `/counters` do Blockscout falhar para algum endereço.**
 Reportar `tx_count` como "≥N (janela)" e seguir. O score usa clamp, então não quebra.
@@ -348,7 +348,7 @@ O único armazenamento que se paga: cache JSON em arquivo por endereço com TTL 
 
 Declarados, não escondidos.
 
-**1. O [fetch] virou 3 chamadas limitadas em vez de paginar tudo.**
+**1. O [fetch] virou 4 leituras lógicas limitadas em vez de paginar tudo (6 requisições HTTP, 7 quando o `/counters` volta frio).**
 Um endereço-baleia com dezenas de milhares de transações estoura latência, rate limit e orçamento. Consequência: diversidade e ritmo são calculados sobre a janela das últimas ≤150 transações, e declarados assim no atestado. Os 4 sinais do grafo permanecem; só a definição fica precisa e o custo por verify fica constante.
 
 **2. O grafo não dizia o que acontece com `unknown` no gate.**

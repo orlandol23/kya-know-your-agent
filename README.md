@@ -192,6 +192,7 @@ That is everything offline mode needs. No Blockscout key, no network:
     npx tsx src/cli.ts --offline 0xeA258496a9311Ffe29CDf920Ca0E8BB4B41c9F04   # replays a committed fixture
     npx tsx src/server.ts --offline                      # GET /verify + the demo UI at /
     open http://localhost:3000/?offline=1                # two agents side by side
+    npm test                                             # 5 tests, offline: no key, no network, committed fixtures
 
 Reading Base mainnet live needs `BLOCKSCOUT_API_KEY` in `.env` as well:
 
@@ -247,8 +248,13 @@ consumer can tell a replay from a fresh read. Responses also say
 The same file format is the live mode's 10-minute cache (`data/cache/`,
 gitignored): a fixture is a cache entry that was kept. A live server also
 honours `?offline=1` per request, and the UI has an *offline* toggle, so the
-demo flips to fixtures without a restart. In offline mode an address without a
-fixture is a 404 (a 503 at the gate), never a silent fallback to stale data.
+demo flips to fixtures without a restart. In offline mode a request resolves in
+three steps: the committed fixture, then `data/cache/<address>.json` **at any
+age**, and only then a 404 (a 503 at the gate). So the guarantee is not that
+stale data is never served — step two will serve a capture of any age rather
+than fail — but that it is never served **unlabelled**: `X-KYA-Source` names
+whichever source answered, and `evidence.fetched_at` carries the instant the
+chain was actually read.
 
 The Blockscout Free tier allows 5 requests per second (and 100,000 credits a
 day, renewed daily, at 20 per call, so roughly 700 verifies per day; the
@@ -284,6 +290,15 @@ agent, so it fails closed with `503` rather than answer from older evidence.
 Degrading is right for `/verify`, which is a read and settles nothing, and wrong
 for the gate. The retry budget is sized for a live demo; a longer outage is what
 `--offline` is for.
+
+`npm test` covers five things — canonical serialization and signature recovery,
+the four fixture verdicts, the cutoffs at exactly 84/85/192/193, the payment-header
+parser against nineteen degenerate inputs, and a gate `403` leaving the payment
+middleware at zero calls — and deliberate mutations to `config.ts`, `verdict.ts`,
+`attest.ts` and `gate.ts` are each caught by the expected test, with two parameters
+(`WEIGHTS.funding` and `THRESHOLDS.ageDays.zero`) invisible to the current fixture
+set because one is cancelled by an exchange funder at level 1.0 and the other by
+the EPS floor.
 
 ## Related work
 

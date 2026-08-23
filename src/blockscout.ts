@@ -443,7 +443,7 @@ export async function fetchCounters(address: string): Promise<AddressCounters> {
 }
 
 /**
- * The three calls together: everything one verify needs.
+ * The four reads together: everything one verify needs, in 6 HTTP requests.
  *
  * Blockscout computes /counters lazily: the first request for a cold address
  * can answer 0 while the real count is in the thousands, and a later request

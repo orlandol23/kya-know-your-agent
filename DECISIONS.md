@@ -76,9 +76,14 @@ Os três endereços da demo continuam transacionando. A fixture congela o que a
 demo mostra, e o arquivo carrega captured_at. Não é mock: é a resposta real
 da API, guardada com data. O modo online roda contra a chain e está no repo.
 
-## Sem fixture não há fallback silencioso
-Endereço sem fixture no modo offline devolve 404, não uma resposta inventada.
-Silêncio seria pior que erro.
+## Nada velho é servido sem rótulo
+O modo offline resolve em três passos: a fixture commitada, depois
+data/cache/<endereço>.json EM QUALQUER IDADE, e só então 404 (503 no gate).
+A garantia não é que dado velho nunca é servido — o passo dois serve uma captura
+de qualquer idade em vez de falhar — e sim que ele nunca é servido SEM RÓTULO:
+o X-KYA-Source nomeia a fonte que respondeu e evidence.fetched_at carrega o
+instante em que a chain foi lida. Resposta inventada, essa não existe em passo
+nenhum: sem fixture e sem cache é erro, não silêncio.
 
 ## Os labels de CEX vêm do Dune Spellbook, em commit pinado
 A heurística de exchange (EOA com mais de 1M de transações na Base que financiou
@@ -285,7 +290,7 @@ degradação. A assimetria é a linha entre informar e decidir.
 **Os dois headers.** X-KYA-Source (live | cache | fixture) diz qual fonte
 respondeu. X-KYA-Degraded (budget | upstream) diz por que uma réplica entrou no
 lugar de uma leitura ao vivo. Sem eles a degradação seria silenciosa, que é
-exatamente o que a entrada "sem fixture não há fallback silencioso" recusa. E
+exatamente o que a entrada "nada velho é servido sem rótulo" recusa. E
 evidence.fetched_at continua carregando o instante da captura, então um replay
 não se passa por leitura fresca nem para quem ignorar os dois headers.
 

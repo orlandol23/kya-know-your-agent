@@ -325,7 +325,7 @@ TypeScript. And yes, every rule it uses is public, committed and reproducible.**
 | Cutoffs applied | `src/verdict.ts:29` | `verdictFor()`: ≤ 84 suspicious, ≥ 193 trusted, between = unknown |
 | The reference set | `data/signals.csv` | 30 rows, committed on purpose: the evidence behind every calibrated number |
 | The calibration | `scripts/calibrate.ts` | reads `data/signals.csv`, prints every measured number and a paste-ready config block |
-| Per-request arithmetic | `src/server.ts:53` | `explain()`: what `?explain=1` returns |
+| Per-request arithmetic | `src/server.ts:143` | `explain()`: what `?explain=1` returns |
 
 `src/config.ts` labels each constant **MEASURED** or **CHOSEN** in the file
 itself, with the distinction spelled out at the top: MEASURED means it is the
