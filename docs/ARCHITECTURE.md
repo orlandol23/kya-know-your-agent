@@ -16,6 +16,7 @@
 4. [Where each piece of data comes from](#4-where-each-piece-of-data-comes-from)
 5. [On-chain versus off-chain](#5-on-chain-versus-off-chain)
 6. [Stateless, and what happens when it falls over](#6-stateless-and-what-happens-when-it-falls-over)
+7. [Glossary](#7-glossary)
 
 ---
 
@@ -36,6 +37,61 @@ a signed attestation anyone can check without calling KYA again.
 
 There are two round trips, because that is how x402 works: the first request
 learns the price, the second one carries the payment.
+
+### The eight steps, in order
+
+Time order, not middleware order. The diagram below numbers the middlewares in
+the order they are *mounted*; this is the order things actually happen in.
+
+1. **The agent asks for the resource and offers no payment.** `GET /chem`, no
+   `X-PAYMENT` header.
+2. **The gate lets it through.** There is no payer named yet, so there is nothing
+   to check and nothing to refuse. `src/gate.ts` calls `next()`.
+3. **The payment middleware quotes a price.** `402 Payment Required`, saying what
+   to pay, in what token, on what network. This is how an x402 client discovers
+   the price; it is not an error.
+4. **The agent signs a payment and asks again.** It signs an EIP-3009
+   authorization offline — no gas, no funds moved, so even a zero-balance wallet
+   can do it — and repeats `GET /chem` with the signed payload in `X-PAYMENT`.
+5. **The gate names the payer and checks it.** It decodes the header, takes
+   `payload.authorization.from`, and runs the full verification on that address:
+   read the Base history, derive the signals, apply the compliance gate, score,
+   decide, sign an attestation. Six HTTP calls to Blockscout, a second or two.
+6. **If the verdict is `suspicious`, the gate answers `403` here and stops.**
+   The reason and the signed attestation go in the body. The payment middleware
+   never runs, so **nothing settles and the agent pays nothing** — it signed a
+   payment that was never taken.
+7. **Otherwise the request continues.** The payment middleware now verifies the
+   payment signature itself (which is why the gate did not have to), and the
+   handler runs and produces the response body.
+8. **Settlement happens last.** Only after the handler answers `2xx` does the
+   payment middleware ask the facilitator to submit the transfer on-chain. The
+   `200` goes back with `X-PAYMENT-RESPONSE`.
+
+The whole design is step 6 landing before step 8.
+
+### Where each piece runs
+
+Six files. Four of them are processes you start; the other two are a static
+file and a middleware that runs inside somebody else's process:
+
+| Piece | File | What it is | Port | Hosted? |
+|---|---|---|---|---|
+| Verification API | `src/server.ts` | `GET /verify`, plus it serves the UI | `PORT`, 3000 locally; Railway injects its own | **Hosted on Railway** |
+| Demo UI | `ui/index.html` | one static file, no build, no dependency; served at `/` by `src/server.ts` | same process | **Hosted on Railway** |
+| The gate | `src/gate.ts` | **not a process** — Express middleware a seller mounts inside their own app | none of its own | ships as code, runs wherever the seller runs |
+| Demo seller | `demo/paid-endpoint.ts` | the paid endpoint: `kyaGate()` → `paymentMiddleware()` → `GET /chem`, plus a stub facilitator in the same process | `DEMO_PORT`, 4021 | **local only** |
+| Demo buyers | `demo/agents.ts` | two x402 clients — established and fresh — against that endpoint | client, no port | **local only** |
+| Terminal verify | `src/cli.ts` | one address in, the whole pipeline printed | none | **local only** |
+
+**Why the demo is not hosted.** It is two processes plus a payment facilitator,
+and it settles on Base Sepolia. Hosting it would mean hosting a wallet with
+testnet funds and a seller nobody sells anything to. The hosted URL is the
+read-only half — `GET /verify` and the UI — which is the half a reviewer can
+actually poke at. The gate is the interesting half, and it is 152 lines of
+`src/gate.ts` plus the two demo files, meant to be run locally in two terminals.
+
+### The same path as a diagram
 
 ```
   AGENT (buyer)                SELLER'S PROCESS                          CHAIN / OFF-CHAIN
@@ -407,15 +463,33 @@ pass itself off as a fresh read.
 
 | What breaks | What the caller gets | Did anything settle? |
 |---|---|---|
-| **Daily live-verify budget spent** (public deployment) | The server stops calling Blockscout *before* the network, and replays a committed capture: `200`, `X-KYA-Source: fixture`, `X-KYA-Degraded: budget`. No capture for that address → `429` with `Retry-After` counting down to 00:00 UTC. Cap from `KYA_DAILY_VERIFY_BUDGET` (default 500); only reads that actually reach Blockscout are charged, so a cache hit is free | No |
-| Blockscout answers 500 | 1 retry (~0.5–0.75 s backoff), then the **server** replays a committed capture if it has one (`X-KYA-Degraded: upstream`), else `502` carrying the real upstream message. The **gate** does not degrade: `503` | No |
+| **Daily live-verify budget spent** (public deployment) | The server stops calling Blockscout *before* the network, and replays a committed capture — or a cache entry of any age, labelled `cache`: `200`, `X-KYA-Source: fixture | cache`, `X-KYA-Degraded: budget`. Neither available for that address → `429` with `Retry-After` counting down to 00:00 UTC. Cap from `KYA_DAILY_VERIFY_BUDGET` (default 500); only reads that actually reach Blockscout are charged, so a cache hit is free | No |
+| Blockscout answers 500 | 1 retry (~0.5–0.75 s backoff), then the **server** replays a committed capture, or a cache entry of any age, if it has either (`X-KYA-Degraded: upstream`), else `502` carrying the real upstream message. The **gate** does not degrade: `503` | No |
 | Blockscout hangs | 8 s timeout, 2 attempts → ~17 s, then the same fallback: replay if a capture exists, else `502` / `503` | No |
 | Blockscout rate-limits (429) | up to 3 dedicated retries honouring `Retry-After`, then the normal *retry* budget | No |
 | Bad or missing API key (401/402) | thrown immediately, no retry, with the actionable message | No |
 | `ATTESTER_PRIVATE_KEY` missing or malformed | `ConfigError` **at boot** — the process refuses to start | Nothing ever ran |
-| Offline mode, no fixture for the address | `404` from the server, `503` from the gate. Never a silent fallback to stale data | No |
+| Offline mode, no fixture for the address | The server tries `data/fixtures/`, then `data/cache/` **at any age**, and only then answers `404` (`503` at the gate). A cache replay is labelled `X-KYA-Source: cache`, never passed off as a fixture or as a live read | No |
 | Unexpected error inside verify | `500`, *"payment refused before settlement"* | No |
 | **The whole KYA service is down** | The gate is middleware inside the seller's process: if `verify()` cannot answer, every paying request is refused `503` before settlement | No |
+
+**What a replay actually resolves to.** `loadHistory` (`src/history.ts`) tries
+three things in order, and the reply says which one answered:
+
+```
+1.  data/fixtures/<address>.json    committed dated capture   ->  X-KYA-Source: fixture
+2.  data/cache/<address>.json       AT ANY AGE, no TTL here   ->  X-KYA-Source: cache
+3.  neither exists                  ->  404 (server) · 503 (gate)
+```
+
+So the honest guarantee is **not** "never stale data": step 2 will serve a
+capture of any age rather than fail. It is that stale data is never served
+*unlabelled*. `X-KYA-Source` names the source on every `200`, and
+`evidence.fetched_at` carries the instant the chain was actually read, so a
+consumer can always tell what it is holding and apply its own freshness policy.
+The 10-minute TTL belongs to the live path, where a fresh read is the
+alternative; on the replay path there is no alternative, so an old entry beats
+no answer — and says so.
 
 The retry budget is sized for a live demo, not a batch job: ~17 s worst case
 instead of ~65 s. The answer to a longer outage is not patience, it is
@@ -434,3 +508,60 @@ why the gate does not do it.
 signed object — a consumer verifies it with `ecrecover` and re-reads the evidence
 on Blockscout, with no call to KYA at all. When KYA is down, the only thing lost
 is freshness. There is no state to lose.
+
+
+---
+
+## 7. Glossary
+
+Ten terms this document uses without stopping to explain them.
+
+**x402** — An HTTP payment protocol. The server answers `402 Payment Required`
+with a price; the client repeats the request carrying a signed payment in an
+`X-PAYMENT` header. Contributed by Coinbase to the x402 Foundation under the
+Linux Foundation in 2026. KYA sits in front of it and changes nothing about it.
+
+**facilitator** — The service that verifies an x402 payment and submits it
+on-chain. The seller chooses one. **KYA is not a facilitator**, has no custody
+and never moves funds; the demo points at a stub inside its own process so no
+testnet funds are needed.
+
+**EIP-3009** — "Transfer with authorization": an ERC-20 extension that lets a
+wallet *sign* a transfer that somebody else submits and pays gas for. It is why a
+zero-balance wallet can still produce a valid payment — and why the fresh wallet
+in the demo can be refused *after* signing, having lost nothing.
+
+**EIP-191** — The Ethereum standard for signing an arbitrary message with a
+wallet key (`personal_sign`). Every KYA attestation is signed this way, so any
+consumer can recover the signer in three lines and compare it against the
+attester it decided to trust.
+
+**RFC 8785 (JCS)** — JSON Canonicalization Scheme: one deterministic byte
+sequence for a given JSON value — keys sorted recursively, no whitespace. Without
+it, two languages could serialize the same attestation differently and the
+signature would fail to verify for no real reason.
+
+**SDN** — Specially Designated Nationals, the sanctions list published by the US
+Treasury's OFAC. KYA extracts the entries carrying an Ethereum address and uses
+them as a binary gate that sits *outside* the score: a listed address is not
+scored badly, it is not scored at all.
+
+**EOA** — Externally Owned Account: an ordinary wallet controlled by a private
+key, as opposed to a smart contract. Control of an EOA address is the same key on
+every EVM chain, which is why an exchange label recorded on another chain still
+identifies that address on Base.
+
+**attester** — The keypair KYA signs attestations with, and the address a
+consumer pins in order to trust them. Throwaway by design: it signs, it never
+holds funds. The hosted deployment uses a different key from the one in the
+README examples.
+
+**stratum** (plural *strata*) — One of the three labelled groups in the
+calibration set: fresh, mid, established, ten addresses each. Thresholds come
+from comparing strata. The refusal to recompose a stratum to make a signal look
+better is exactly why diversity and cadence ended at weight zero.
+
+**cold start** — Having no history to judge *in the source a given scorer reads*.
+A wallet with two years of Base activity and no prior x402 payment is a cold
+start to anything scoring x402 payment history, and a track record to KYA. That
+asymmetry is the argument in `POSITIONING.md` §1.4.
