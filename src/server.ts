@@ -30,13 +30,15 @@
  * restart if Blockscout dies mid-demo.
  *
  * Status codes say what went wrong, so a caller can tell a bad address (400)
- * from a missing fixture (404) from a spent budget (429) from Blockscout being
+ * from a missing fixture (404) from too many requests from one IP or a spent
+ * budget (429, `reason: rate` or `reason: budget`) from Blockscout being
  * unavailable (502) from a bug here (500). Only 200 carries an attestation.
  */
 
 import { fileURLToPath } from 'node:url'
 
 import express, { type Request, type Response } from 'express'
+import { rateLimit, type RateLimitInfo } from 'express-rate-limit'
 
 import { attesterAccount } from './attest.js'
 import { BlockscoutError, chainId } from './blockscout.js'
@@ -137,6 +139,77 @@ function secondsUntilUtcMidnight(): number {
   const now = new Date()
   const next = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1)
   return Math.max(1, Math.ceil((next - now.getTime()) / 1000))
+}
+
+/*
+ * ── The per-IP limit on /verify ──────────────────────────────────────────────
+ *
+ * The budget above is honest about what it is: "a budget, not a fence"
+ * (comment above). It counts live verifies process-wide, so it stops the
+ * SERVICE from overspending, but it does nothing to stop one caller from
+ * being the spender: varying the address, a single caller can still exhaust
+ * the whole day's budget for every other caller in about twenty minutes,
+ * because the budget has no notion of "caller" at all, only a running total.
+ *
+ * This is the fence the budget is not: a request count per SOURCE IP, over a
+ * one-minute window, so no single caller can consume more than its own slice
+ * of the day no matter how many distinct addresses it asks about. It answers
+ * a different question than the budget (who is asking, not how much has been
+ * spent today) and neither makes the other redundant.
+ *
+ * KYA_VERIFY_RATE_LIMIT_PER_MIN (default 30) is read from the environment on
+ * every check, same parsing pattern and same reason as dailyVerifyBudget():
+ * retunable from a hosting dashboard without a redeploy. 0 is a valid
+ * setting and means "no per-IP limit", the same convention as
+ * KYA_DAILY_VERIFY_BUDGET=0 meaning "no live reads at all".
+ *
+ * It runs BEFORE the budget check in handleVerify, so a request this turns
+ * away with 429 never reaches, and never charges, the daily budget: being
+ * over-eager here has no cost to the budget a well-behaved caller relies on.
+ *
+ * Only /verify is limited; the static UI at `/` is not. And like the budget,
+ * this guards the public HTTP surface only — src/gate.ts runs inside a
+ * seller's own process against their own key and is deliberately left alone.
+ */
+const DEFAULT_VERIFY_RATE_LIMIT_PER_MIN = 30
+
+function verifyRateLimitPerMin(): number {
+  const value = Number(process.env.KYA_VERIFY_RATE_LIMIT_PER_MIN)
+  return Number.isInteger(value) && value >= 0 ? value : DEFAULT_VERIFY_RATE_LIMIT_PER_MIN
+}
+
+/** How long a client should wait for its per-IP window to reopen. */
+function secondsUntilRateLimitReset(resetTime: Date | undefined): number {
+  if (resetTime === undefined) return 60
+  return Math.max(1, Math.ceil((resetTime.getTime() - Date.now()) / 1000))
+}
+
+/**
+ * A fresh limiter with its own in-memory counters, one per `createApp()`
+ * call, so two servers in the same process (as in the tests) never share a
+ * bucket. `limit` and `skip` re-read the environment per request rather than
+ * capturing it at creation, for the same retune-without-redeploy reason as
+ * `dailyVerifyBudget()`.
+ */
+function verifyRateLimiter() {
+  return rateLimit({
+    windowMs: 60_000,
+    limit: () => verifyRateLimitPerMin(),
+    skip: () => verifyRateLimitPerMin() === 0,
+    standardHeaders: 'draft-7',
+    legacyHeaders: false,
+    // Same error shape as the rest of this file: a message, a machine-
+    // readable `reason`, and how long until the caller can try again.
+    handler: (req: Request, res: Response) => {
+      const info = (req as Request & { rateLimit?: RateLimitInfo }).rateLimit
+      res.setHeader('cache-control', 'no-store')
+      res.status(429).json({
+        error: 'too many verifications from this address in the last minute',
+        reason: 'rate',
+        retry_after_seconds: secondsUntilRateLimitReset(info?.resetTime),
+      })
+    },
+  })
 }
 
 /** The score arithmetic, snake_case like the attestation. Not signed: it is derivable from it. */
@@ -279,6 +352,36 @@ async function handleVerify(req: Request, res: Response): Promise<void> {
   }
 }
 
+/**
+ * Builds the app without listening, so tests can drive it on an ephemeral
+ * port and exercise the real middleware chain (rate limiter included)
+ * instead of calling handleVerify() directly.
+ */
+export function createApp(): express.Express {
+  const app = express()
+  app.disable('x-powered-by')
+
+  // The server runs behind Railway's own proxy, so the client's real IP
+  // arrives as the first hop in X-Forwarded-For, not as the TCP peer
+  // address. Trusting exactly ONE hop tells Express to read that first
+  // entry as req.ip: enough to key the limiter below on the actual caller,
+  // and no more, so a caller cannot forge extra X-Forwarded-For entries to
+  // pick whatever IP it wants counted instead of its own. Without this,
+  // every request looks like it came from Railway's proxy, the limiter puts
+  // every caller in one shared bucket, and the first 30 requests a minute
+  // from ANYONE lock out everyone else.
+  app.set('trust proxy', 1)
+
+  app.get('/verify', verifyRateLimiter(), (req, res) => {
+    void handleVerify(req, res)
+  })
+  // The demo UI: one static file, no build. `/` is index.html. Not rate
+  // limited: it is not the metered resource /verify is.
+  app.use(express.static(UI_DIR, { index: 'index.html', cacheControl: false, etag: false }))
+
+  return app
+}
+
 function main(): void {
   try {
     requireVerifyConfig()
@@ -289,14 +392,7 @@ function main(): void {
     return
   }
 
-  const app = express()
-  app.disable('x-powered-by')
-  app.get('/verify', (req, res) => {
-    void handleVerify(req, res)
-  })
-  // The demo UI: one static file, no build. `/` is index.html.
-  app.use(express.static(UI_DIR, { index: 'index.html', cacheControl: false, etag: false }))
-
+  const app = createApp()
   const listenPort = port()
   app.listen(listenPort, () => {
     console.log(`KYA · GET http://localhost:${listenPort}/verify?address=0x...`)
@@ -314,8 +410,17 @@ function main(): void {
       )
     }
     if (isOffline()) for (const address of listFixtures()) console.log(`              ${address}`)
+    const perMin = verifyRateLimitPerMin()
+    console.log(
+      perMin === 0
+        ? '  rate      no per-IP limit (KYA_VERIFY_RATE_LIMIT_PER_MIN=0)'
+        : `  rate      ${perMin} /verify per IP per minute (KYA_VERIFY_RATE_LIMIT_PER_MIN)`,
+    )
     console.log(`  attester  ${attesterAccount().address}   (pin this address to verify signatures)`)
   })
 }
 
-main()
+// Only listen when this file is run directly (`npx tsx src/server.ts`), not
+// when a test imports createApp() to drive the app on its own port.
+const isEntryPoint = process.argv[1] === fileURLToPath(import.meta.url)
+if (isEntryPoint) main()

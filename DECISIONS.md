@@ -308,3 +308,57 @@ publicado no README, fora de banda, porque "verificável sem confiar nesta API" 
 significa alguma coisa se a API não for quem diz em quem confiar. A consequência
 é que uma resposta ao vivo traz um attester diferente do dos exemplos, e o README
 avisa disso em vez de deixar quem comparar achar que encontrou uma inconsistência.
+
+
+## Per-IP limit on /verify (Limite por IP no /verify)
+A entrada anterior já é honesta sobre o orçamento diário: "é orçamento, não
+cerca". Ele conta verifies ao vivo por processo, sem noção nenhuma de quem
+está perguntando. Isso é suficiente para o serviço não estourar a cota da
+Blockscout, mas não impede que UM chamador seja quem gasta essa cota por
+todo mundo: variando o endereço, ele esgota os 500 verifies do dia em cerca
+de vinte minutos, e dali em diante toda visita clicando num dos quatro
+endereços da demo cai em fixture sem nenhum motivo além de outra pessoa ter
+feito um laço de curl mais cedo. Um orçamento por processo não vira cerca só
+porque alguém adiciona mais checagem em cima dele; falta o eixo que ele nunca
+teve, que é "quem".
+
+**Por que 30/min.** O limite é por IP de origem, janela fixa de um minuto,
+default `KYA_VERIFY_RATE_LIMIT_PER_MIN=30`. Não é medido como os cutoffs do
+score; é escolhido, como os pesos e a penalidade de burst. Trinta é folgado
+para o uso real da demo (alguém clicando nos quatro endereços na UI fica
+muito abaixo disso) e ainda assim baixo o suficiente para que um chamador em
+laço não consiga mais varrer o orçamento do dia em vinte minutos sozinho: ele
+teria que dividir a varredura por IPs diferentes, o que já é um obstáculo
+bem maior que nenhum. Lido do ambiente a cada checagem, igual
+`dailyVerifyBudget()`, então dá para retunar pelo painel do Railway sem
+redeploy. `KYA_VERIFY_RATE_LIMIT_PER_MIN=0` é a mesma convenção do
+orçamento diário: zero é "sem limite por IP", não "bloqueia tudo".
+
+O limite roda ANTES da checagem de orçamento em `handleVerify`. Uma
+requisição que ele recusa nunca chega a `liveBudgetRemaining()`, então ser
+generoso demais aqui não tem custo nenhum sobre o orçamento que um chamador
+bem-comportado depende: o pior caso é responder 429 cedo demais, nunca
+cobrar um verify que não deveria.
+
+**Por que o gate continua intocado.** A mesma assimetria da entrada anterior
+vale aqui: `/verify` é leitura pública, sem autenticação, e é exatamente por
+isso que precisa de uma defesa por chamador. `src/gate.ts` roda dentro do
+processo de um vendedor, contra a própria chave dele, decidindo se um agente
+PAGANTE é servido — não é a superfície pública que este limite protege, e
+colocar rate limit ali resolveria um problema que o gate não tem enquanto
+inventa um novo (um vendedor legítimo com tráfego de pico sendo barrado pelo
+próprio serviço de reputação). Fica de fora pelo mesmo motivo que o
+orçamento diário ficou de fora dele.
+
+**`trust proxy` = 1 hop é uma suposição do Railway.** O limite conta por
+`req.ip`, e o Express só lê `X-Forwarded-For` como confiável se mandarmos.
+`app.set('trust proxy', 1)` diz para confiar exatamente NO PRIMEIRO hop
+desse cabeçalho, que no deploy atual é o proxy do Railway na frente do
+processo — daí vem o IP real de quem chamou. Sem isso, toda requisição
+pareceria vir do proxy, o limite juntaria todo mundo num balde só, e os
+primeiros 30 chamados por minuto de QUALQUER pessoa trancariam todo o
+resto. Confiar em UM hop, não em "todos" (`trust proxy: true`), importa na
+outra direção também: um cabeçalho forjado com hops extras não muda qual
+entrada o Express lê como IP do cliente. Se o serviço um dia ganhar outra
+camada de proxy na frente (um CDN, por exemplo), esse número precisa
+acompanhar, ou volta a errar o IP que conta.
