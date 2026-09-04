@@ -1,5 +1,7 @@
 # KYA: Know Your Agent
 
+![CI](https://github.com/orlandol23/kya-know-your-agent/actions/workflows/ci.yml/badge.svg)
+
 **On-chain reputation for AI agents that pay through x402.**
 
 AI agents already buy services with stablecoins over x402: 7M+ transactions in
