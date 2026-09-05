@@ -362,3 +362,60 @@ outra direção também: um cabeçalho forjado com hops extras não muda qual
 entrada o Express lê como IP do cliente. Se o serviço um dia ganhar outra
 camada de proxy na frente (um CDN, por exemplo), esse número precisa
 acompanhar, ou volta a errar o IP que conta.
+
+## OFAC list: automated refresh, local lookup (Lista OFAC: refresh automatizado, consulta local)
+**Registrado como plano, ainda não construído.**
+
+Hoje `src/sanctions.ts` é um `Map` escrito à mão com 100 endereços, extraídos do
+SDN.XML publicado em 07/08/2026 e capturados em 16/08. A proveniência mora num
+comentário e o "refresh before any real deployment" é uma frase, não um
+mecanismo. Uma lista de sanções que envelhece em silêncio é o pior tipo de
+lista: continua respondendo com confiança total sobre um mundo que mudou. E
+remoção pesa tanto quanto adição, porque endereço deslistado que segue
+bloqueado é pagador legítimo recusado.
+
+A saída óbvia seria consultar a OFAC em tempo de requisição. É a errada, por
+quatro motivos.
+
+**Fail-closed viraria dependência de uptime alheio.** A entrada "Blockscout fora
+do ar: o GATE devolve 503" já aceita uma dependência de rede, mas aquela é
+inevitável: dado por endereço não dá para snapshotar. Uma lista dá. Adicionar
+uma dependência evitável ao mesmo caminho fail-closed significa que uma
+indisponibilidade do Tesouro americano derruba o faturamento de todo vendedor
+rodando o gate. O gate não tem o direito de importar essa falha.
+
+**O modo offline morre.** É o caminho que o CI e os 6 testes usam: sem chave,
+sem rede, fixtures commitadas. Consulta ao vivo no meio da classificação de
+financiador quebra exatamente a propriedade que torna este repositório
+verificável por quem clona.
+
+**Decisão de compliance precisa ser reconstituível.** "Por que este pagador foi
+bloqueado no dia 3?" tem que ser respondível por commit. Com fetch ao vivo não
+é: não sobra registro do que a lista dizia naquele instante.
+
+**O SDN.XML é grande.** Ninguém parseia aquilo por requisição, então na prática
+existiria cache com TTL. Cache com TTL é snapshot com auditoria pior.
+
+**O que fazer no lugar: o padrão que este repo já usou.** Os labels de CEX
+resolveram este mesmo problema uma vez, e melhor: `data/cex-addresses-evm.json`
+com bloco `meta` (commit, URL raw, sha256 da fonte, licença, data) e
+`scripts/build-cex-labels.ts` reconstruindo o arquivo byte a byte. Comparada a
+ela, a lista OFAC é hoje o dataset mais fraco dos dois. A correção é nivelar
+por cima:
+
+1. `data/ofac-sdn-eth.json` com bloco `meta`: URL da fonte, data de publicação
+   da lista, data de extração, sha256 do XML baixado, contagem de endereços.
+2. `scripts/build-ofac-list.ts` filtrando `idType == "Digital Currency Address
+   - ETH"`, determinístico, mesma forma do builder de CEX.
+3. `src/sanctions.ts` vira loader fino sobre o JSON. A API pública
+   (`OFAC_SANCTIONED`, `sanctionEntryFor`) não muda, então `funding.ts` não é
+   tocado e o teste de classificação continua valendo.
+4. Workflow agendado rodando o builder e abrindo PR quando o conteúdo muda. O
+   diff do PR é a auditoria: mostra adição E remoção, revisadas por uma pessoa
+   antes de virarem comportamento.
+5. Idade rotulada, seguindo "nada velho é servido sem rótulo": a data de
+   publicação entra na evidência do atestado, e o servidor avisa no boot quando
+   a lista passa de N dias.
+
+Resumindo a escolha: refresh dinâmico, consulta local. O que está hardcoded não
+é a consulta, é o processo de atualização, e é ele que sai daqui.

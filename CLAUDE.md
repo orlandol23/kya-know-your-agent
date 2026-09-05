@@ -20,9 +20,21 @@ not by visitors browsing the code.
 
 ## Language
 
-This repository is written in English throughout, README included, and stays
-that way: documentation, code comments, test names, commit messages and PR
-titles. There is no locale bundle, so there is no product-content exception.
+This repository splits by audience, on purpose, and the split stays as it is.
+
+English, because these are what a visitor reads: `README.md`,
+`docs/ARCHITECTURE.md`, `docs/POSITIONING.md`, all code comments, test names,
+commit messages and PR titles.
+
+Portuguese, because these are working records rather than deliverables:
+`PLAN.md` and `DECISIONS.md`. Both open with a "Note for English readers"
+banner explaining the choice and pointing at the English material, and both
+carry an English translation in every heading so the file can still be
+navigated. Code and data cite PLAN.md's calibration sections by number, which
+is why it is kept verbatim rather than rewritten.
+
+Do not "fix" those two into English. Add to them in Portuguese, keeping the
+bilingual headings.
 
 ## Stack
 
