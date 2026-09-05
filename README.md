@@ -1,5 +1,7 @@
 # KYA: Know Your Agent
 
+![CI](https://github.com/orlandol23/kya-know-your-agent/actions/workflows/ci.yml/badge.svg)
+
 **On-chain reputation for AI agents that pay through x402.**
 
 AI agents already buy services with stablecoins over x402: 7M+ transactions in
@@ -41,7 +43,9 @@ Limits: 500 live verifications a day. Past that the service keeps answering, but
 replays a committed dated capture instead of reading Blockscout and says so in
 the headers (`X-KYA-Source: fixture`, `X-KYA-Degraded: budget`). Every response
 carries `X-KYA-Source: live | cache | fixture`, so a caller can always tell
-which one answered.
+which one answered. Also per IP: 30 `/verify` requests a minute, past which the
+rest of that minute gets `429` with `RateLimit-*` and `Retry-After` headers,
+so no single caller can spend the whole day's budget for everyone else.
 
 ## Documentation
 
@@ -192,7 +196,7 @@ That is everything offline mode needs. No Blockscout key, no network:
     npx tsx src/cli.ts --offline 0xeA258496a9311Ffe29CDf920Ca0E8BB4B41c9F04   # replays a committed fixture
     npx tsx src/server.ts --offline                      # GET /verify + the demo UI at /
     open http://localhost:3000/?offline=1                # two agents side by side
-    npm test                                             # 5 tests, offline: no key, no network, committed fixtures
+    npm test                                             # 6 tests, offline: no key, no network, committed fixtures
 
 Reading Base mainnet live needs `BLOCKSCOUT_API_KEY` in `.env` as well:
 
@@ -271,6 +275,7 @@ live URL:
 | Blockscout answers 500 (1 retry, ~1 s) | `200` + `X-KYA-Source: fixture` + `X-KYA-Degraded: upstream` | `502`, carrying the real upstream message |
 | Blockscout hangs (8 s timeout, 2 attempts, ~17 s) | the same labelled replay | `502` |
 | The day's live-verify budget is spent | `200` + `X-KYA-Source: fixture` + `X-KYA-Degraded: budget` | `429` + `Retry-After`, counting down to 00:00 UTC |
+| More than 30 verifies from one IP in a minute | `429` + `Retry-After` | `429` + `Retry-After` |
 
 `KYA_DAILY_VERIFY_BUDGET` (default 500) caps how many verifications a day may
 actually reach Blockscout. Only reads that reach it are charged, so a cache hit
@@ -291,10 +296,11 @@ Degrading is right for `/verify`, which is a read and settles nothing, and wrong
 for the gate. The retry budget is sized for a live demo; a longer outage is what
 `--offline` is for.
 
-`npm test` covers five things (canonical serialization and signature recovery,
+`npm test` covers six things (canonical serialization and signature recovery,
 the four fixture verdicts, the cutoffs at exactly 84/85/192/193, the payment-header
-parser against nineteen degenerate inputs, and a gate `403` leaving the payment
-middleware at zero calls), and deliberate mutations to `config.ts`, `verdict.ts`,
+parser against nineteen degenerate inputs, a gate `403` leaving the payment
+middleware at zero calls, and a fourth `/verify` from one IP inside a minute
+getting `429` instead of a fixture), and deliberate mutations to `config.ts`, `verdict.ts`,
 `attest.ts` and `gate.ts` are each caught by the expected test, with two parameters
 (`WEIGHTS.funding` and `THRESHOLDS.ageDays.zero`) invisible to the current fixture
 set because one is cancelled by an exchange funder at level 1.0 and the other by
