@@ -72,3 +72,12 @@ variable.
   key. Leave that property alone.
 - The OFAC list is a committed snapshot and goes stale. Refreshing it is an
   owner task, not something to synthesise.
+
+## Plans and audits
+
+- The plan is `PLAN.md` and `DECISIONS.md`, Portuguese working records; the
+  frozen queue is the last section of `DECISIONS.md`. Nothing in it is ticked by
+  intention: a box closes in the PR that closes it, with the PR linked.
+- `docs/AUDIT-2026-09.md` is the September 2026 security and architecture
+  audit with the status of every finding. A status changes only in the PR that
+  changes the code. Later reviews go in a new dated file, never merged into it.

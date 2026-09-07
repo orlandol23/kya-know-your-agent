@@ -419,3 +419,48 @@ por cima:
 
 Resumindo a escolha: refresh dinâmico, consulta local. O que está hardcoded não
 é a consulta, é o processo de atualização, e é ele que sai daqui.
+
+## Pending and frozen until the jury's complete feedback arrives (Pendente e congelado até o feedback completo da banca, 2026-09-07)
+Em 06/09/2026 o dono congelou toda alteração neste repositório até receber o
+feedback completo da banca do Hackathon Web3 Global #02. Esta seção registra o
+que estava na fila para que nada se perca na espera. **Nada disto foi
+executado.** Cada item vira uma entrada própria nesta lista quando for feito.
+
+1. **O fix de segurança apontado pela banca**: o gate gasta crédito do
+   Blockscout com pagamento que ninguém assinou. Diagnóstico, escopo aprovado
+   (Opção A: `paymentMiddleware` primeiro, `kyaGate()` escopado na rota paga),
+   escopo recusado e checkpoints estão em
+   [`docs/SECURITY-FIX-BRIEFING.md`](docs/SECURITY-FIX-BRIEFING.md), com o
+   plano detalhado em [`docs/SECURITY-FIX-PLAN.md`](docs/SECURITY-FIX-PLAN.md)
+   e o mapa de código em [`docs/CODE-REFERENCE.md`](docs/CODE-REFERENCE.md).
+   O item 1 do briefing já está respondido: a produção sobe `src/server.ts`
+   (`package.json`, script `start`), então a exposição real é a demo e o
+   desenho da lib. Dívida de desenho, não incêndio.
+2. **`expires_at` dentro do corpo assinado** e uma seção "What this
+   attestation does NOT prove" no README. Achado alto da auditoria de
+   setembro ([`docs/AUDIT-2026-09.md`](docs/AUDIT-2026-09.md)): o snippet de
+   verificação confere só o assinante, então aceita atestado de meses atrás.
+3. **`source` (`live | cache | fixture`) dentro do corpo assinado**, não só no
+   header `X-KYA-Source`. Decidido em 06/09: quem repassa o atestado tem que
+   repassar o rótulo junto. Enum de três valores, custo zero. Vai no mesmo
+   commit que o item 2, porque mexe na mesma superfície.
+4. **Snippet Python do README com `ensure_ascii=False`**: sem isso a
+   verificação quebra no primeiro nome da lista SDN com diacrítico, porque
+   `funding.label` e `reasons[0]` estão no corpo assinado. Teste com rótulo
+   não-ASCII junto.
+5. **`kyaGate()` valida a configuração na montagem** (chamar
+   `attesterAccount()` ao construir o middleware), e `docs/ARCHITECTURE.md`
+   passa a dizer o que o código faz.
+6. **Testes dos caminhos críticos** que hoje não têm nenhum: 503 fail-closed
+   do gate, orçamento diário, 400 antes de qualquer I/O, 404 sem fixture.
+7. **A bifurcação da demo** (briefing, §10): recomendada a opção (b), declarar
+   em vez de mudar. O default continua simulado, a saída imprime que o
+   facilitator stub aceita qualquer assinatura, e o README documenta a linha do
+   modo `--real`. Decidir depois do fix, não antes.
+8. **Refresh automatizado da lista OFAC**: já decidido acima ("OFAC list:
+   automated refresh, local lookup"); só a execução espera.
+
+Ordem recomendada quando descongelar: item 1 seguindo o §11 do briefing (um
+commit); itens 2 e 3 juntos (um commit, a mesma superfície); item 4; itens 5 e
+6; item 7; item 8. Cada um com o teste vermelho antes e verde depois, como o
+resto deste repositório.
