@@ -464,3 +464,24 @@ Ordem recomendada quando descongelar: item 1 seguindo o §11 do briefing (um
 commit); itens 2 e 3 juntos (um commit, a mesma superfície); item 4; itens 5 e
 6; item 7; item 8. Cada um com o teste vermelho antes e verde depois, como o
 resto deste repositório.
+
+Segunda passada, 07/09/2026, além da auditoria (itens 9 a 12, também congelados):
+
+9. **Versão do esquema no atestado.** Um `schema_version` dentro do corpo
+   assinado, para que consumidores evoluam sem quebrar a verificação. Casa
+   com a ida para EIP-712 (typed data) que já está no roadmap: decidir os dois
+   juntos.
+10. **Rotação da chave do attester.** O endereço de produção é pinado
+    out-of-band de propósito, e isso é o certo. Falta o procedimento de
+    rotação: janela de sobreposição em que as duas chaves são válidas, onde o
+    novo endereço é publicado, e por quanto tempo um atestado da chave antiga
+    continua aceitável. Sem isso, uma rotação forçada quebra todo consumidor de
+    uma vez.
+11. **Frescor dos rótulos de CEX.** Os labels vêm do Dune Spellbook em commit
+    pinado, e um rótulo velho vira um "funded by Binance" errado num atestado
+    assinado. É a mesma decisão que a lista OFAC já teve: cadência de refresh
+    e idade rotulada na evidência.
+12. **Higiene compartilhada pelos seis repositórios.** Dependabot (npm e
+    github-actions), `SECURITY.md` apontando para o private vulnerability
+    reporting do GitHub (sem e-mail pessoal no arquivo), proteção da branch
+    default exigindo o CI verde.
