@@ -344,7 +344,7 @@ cobrar um verify que não deveria.
 vale aqui: `/verify` é leitura pública, sem autenticação, e é exatamente por
 isso que precisa de uma defesa por chamador. `src/gate.ts` roda dentro do
 processo de um vendedor, contra a própria chave dele, decidindo se um agente
-PAGANTE é servido — não é a superfície pública que este limite protege, e
+PAGANTE é servido: não é a superfície pública que este limite protege, e
 colocar rate limit ali resolveria um problema que o gate não tem enquanto
 inventa um novo (um vendedor legítimo com tráfego de pico sendo barrado pelo
 próprio serviço de reputação). Fica de fora pelo mesmo motivo que o
@@ -354,7 +354,7 @@ orçamento diário ficou de fora dele.
 `req.ip`, e o Express só lê `X-Forwarded-For` como confiável se mandarmos.
 `app.set('trust proxy', 1)` diz para confiar exatamente NO PRIMEIRO hop
 desse cabeçalho, que no deploy atual é o proxy do Railway na frente do
-processo — daí vem o IP real de quem chamou. Sem isso, toda requisição
+processo, de onde vem o IP real de quem chamou. Sem isso, toda requisição
 pareceria vir do proxy, o limite juntaria todo mundo num balde só, e os
 primeiros 30 chamados por minuto de QUALQUER pessoa trancariam todo o
 resto. Confiar em UM hop, não em "todos" (`trust proxy: true`), importa na
@@ -461,9 +461,16 @@ executado.** Cada item vira uma entrada própria nesta lista quando for feito.
    automated refresh, local lookup"); só a execução espera.
 
 Ordem recomendada quando descongelar: item 1 seguindo o §11 do briefing (um
-commit); itens 2 e 3 juntos (um commit, a mesma superfície); item 4; itens 5 e
-6; item 7; item 8. Cada um com o teste vermelho antes e verde depois, como o
-resto deste repositório.
+commit); itens 2 e 3 juntos (um commit, a mesma superfície); item 4; item 15
+(commit próprio, barato); itens 5 e 6 com os itens 13 e 14, os quatro a mesma
+superfície de execução: configuração na montagem, testes dos caminhos
+críticos, lint no CI e o teste de ponta a ponta do x402; item 7; item 8;
+passada final pela checklist "Medium and low, apply-only" de
+[`docs/AUDIT-2026-09.md`](docs/AUDIT-2026-09.md), que é o registro canônico
+desses itens; itens 9 a 12 por último, porque são estruturais e nenhum é
+urgente. Cada um com o teste vermelho antes e verde depois, como o resto deste
+repositório, e cada um no seu próprio PR: uma caixa desta fila fecha no PR
+que fecha o item, com o link.
 
 Segunda passada, 07/09/2026, além da auditoria (itens 9 a 12, também congelados):
 
@@ -485,3 +492,28 @@ Segunda passada, 07/09/2026, além da auditoria (itens 9 a 12, também congelado
     github-actions), `SECURITY.md` apontando para o private vulnerability
     reporting do GitHub (sem e-mail pessoal no arquivo), proteção da branch
     default exigindo o CI verde.
+
+Terceira passada, 09/09/2026, do review escrito da banca e do re-audit de
+dependências (itens 13 a 15, também congelados):
+
+13. **Lint e formatter como gate de CI.** O review escrito da banca apontou
+    "sem lint/formatter claramente configurados como gate reprodutível", e
+    nenhum documento da fila cobria. Um linter com config flat (oxlint ou
+    eslint, a decidir na execução; o critério é rodar em Node 22 sem passo de
+    build), mais uma linha no `ci.yml` junto do typecheck e da suíte offline.
+14. **Teste de ponta a ponta do x402: assinatura real, liquidação observada.**
+    O review da banca registrou que não existe teste de assinatura x402
+    seguido de liquidação, e que o teste de ordem usa um contador no lugar do
+    middleware de pagamento. O contador não é o erro: ele existe para provar a
+    ordem (kya.test.ts, teste 5). O que falta é o outro extremo: assinar uma
+    autorização EIP-3009 com `viem`, deixar o `x402-express` de verdade
+    verificar, e observar a liquidação contra o facilitator do próprio
+    processo. Entra junto do item 6.
+15. **`npm audit fix` não quebrante para o axios.** `npm audit --omit=dev`
+    reexecutado em 09/09: axios 1.0.0 a 1.17.0 em 2 advisories high, alcançados
+    pelo `@coinbase/cdp-sdk`, dependência do `x402-express`. Os advisories são
+    posteriores à auditoria de 05/09, que registrara zero no server. O fix é
+    `npm audit fix` simples, sem quebrar nada: commit próprio, com a suíte
+    offline verde depois. Os 30 moderate (cadeia x402, wagmi, walletconnect)
+    só saem com downgrade quebrante do `x402-express` a 0.4.1: não fazer; o
+    Dependabot do item 12 resolve pelo upstream.
