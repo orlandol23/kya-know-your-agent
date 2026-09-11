@@ -1,14 +1,20 @@
+# KYA — Briefing de execução do fix de segurança x402
+
 > **Note for English readers.** This file is in Portuguese: it is the execution
 > briefing for the security finding the Hackathon Web3 Global #02 jury raised
 > (the gate spends Blockscout credit on payments nobody signed), received on
 > 2026-09-05 as a handoff document. It is kept verbatim as a working record.
 > **Nothing in it has been executed**: the owner froze all changes to this
 > repository on 2026-09-06 pending the jury's complete feedback. The English
-> account of how the gate works today is in [`ARCHITECTURE.md`](ARCHITECTURE.md);
-> the audit that sits next to this fix is [`AUDIT-2026-09.md`](AUDIT-2026-09.md).
+> account of how the gate works today is in
+> [`ARCHITECTURE.md`](ARCHITECTURE.md);
+> the audit that sits next to this fix is
+> [`AUDIT-2026-09.md`](AUDIT-2026-09.md).
 > The briefing's item 1 is answered there: production runs `src/server.ts`.
-
-# KYA — Briefing de execução do fix de segurança x402
+> The dependency re-audit (the two highs are axios and ws, both transitive
+> through `x402-express`) is recorded in
+> [`AUDIT-2026-09.md`](AUDIT-2026-09.md); it is separate from this gate fix
+> and nothing here fixes it.
 
 Documento de handoff. Cole no Claude Code dentro do repo `kya-know-your-agent`.
 Contém tudo que foi apurado: diagnóstico confirmado, escopo aprovado, escopo
@@ -50,22 +56,24 @@ Responder isso antes de escrever qualquer linha.
 
 ### A ordem invertida
 
-| Linha | O que roda |
+|Linha|O que roda|
 |---|---|
-| `demo/paid-endpoint.ts:112` | `app.use(kyaGate())` — **chama o Blockscout aqui** |
-| `demo/paid-endpoint.ts:116` | `app.use(paymentMiddleware(...))` — valida assinatura e prazo aqui |
-| `demo/paid-endpoint.ts:135` | `app.get('/chem', ...)` |
+|`demo/paid-endpoint.ts:112`|`app.use(kyaGate())` — **chama o Blockscout aqui**|
+|`demo/paid-endpoint.ts:116`|`app.use(paymentMiddleware(...))` — valida assinatura e prazo aqui|
+|`demo/paid-endpoint.ts:135`|`app.get('/chem', ...)`|
 
 A validação x402 existe e é real, mas acontece 63 linhas e um round-trip depois
 de o gate já ter gastado a cota.
 
 Confirmado lendo o pacote instalado:
-- `node_modules/x402-express/dist/esm/index.mjs:172` → `await verify(decodedPayment, selectedPaymentRequirements)`
+
+- `node_modules/x402-express/dist/esm/index.mjs:172` → `await
+  verify(decodedPayment, selectedPaymentRequirements)`
 - `node_modules/x402-express/dist/esm/index.mjs:230` → `next()` só depois disso
 
 ### O caminho até a rede, a partir do header não autenticado
 
-```
+``` text
 src/gate.ts:99      payerFromPaymentHeader(header)
 src/gate.ts:107     await check(payer)
 src/verify.ts:80    loadHistory
@@ -82,7 +90,8 @@ Não precisa de `scheme`, `network`, `signature`, `validBefore`. Só isto:
 ```
 
 Base64:
-```
+
+``` text
 eyJwYXlsb2FkIjp7ImF1dGhvcml6YXRpb24iOnsiZnJvbSI6IjB4MTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMSJ9fX0=
 ```
 
@@ -110,12 +119,12 @@ gates diferentes. A banca achou o buraco entre as duas perguntas.
 
 ### Superfície real: proteções invertidas em relação ao risco
 
-| | `GET /verify` (`src/server.ts:294`) | `kyaGate()` (`src/gate.ts:88`) |
+||`GET /verify` (`src/server.ts:294`)|`kyaGate()` (`src/gate.ts:88`)|
 |---|---|---|
-| Proteção x402 | nenhuma, rota pública | header forjável |
-| Budget diário | sim, `src/server.ts:244` (default 500) | **não** |
-| Cache 10 min | sim, `src/history.ts:160` | sim (mesmo cache) |
-| Degrada p/ fixture | sim | não, 503 |
+|Proteção x402|nenhuma, rota pública|header forjável|
+|Budget diário|sim, `src/server.ts:244` (default 500)|**não**|
+|Cache 10 min|sim, `src/history.ts:160`|sim (mesmo cache)|
+|Degrada p/ fixture|sim|não, 503|
 
 A frase que fecha o diagnóstico está no próprio código, `src/server.ts:92-93`:
 
@@ -135,7 +144,8 @@ Railway, onde a chave é do Orlando.
 
 ### O que NÃO amplia a superfície (já verificado, não mexer)
 
-- `?explain=1` — `src/server.ts:232` só liga um booleano; `explain()` (`:143-162`)
+- `?explain=1` — `src/server.ts:232` só liga um booleano; `explain()`
+  (`:143-162`)
   é aritmética pura sobre o breakdown que já existe. Zero requisições extras.
 - `?offline=1` — `src/history.ts:144-155`, não toca rede. É saída, não entrada.
 - `express.static` (`src/server.ts:298`) — não toca Blockscout.
@@ -169,9 +179,11 @@ app.use(paymentMiddleware(receiver, { 'GET /chem': {...} }, { url: facilitatorUr
 app.get('/chem', kyaGate(), handler)   // gate ESCOPADO, não app.use()
 ```
 
-**O que muda:** ~10 linhas em `demo/paid-endpoint.ts`. Nenhuma linha em `src/gate.ts`.
+**O que muda:** ~10 linhas em `demo/paid-endpoint.ts`. Nenhuma linha em
+`src/gate.ts`.
 
-**Critério de aceitação:** nenhuma chamada ao Blockscout para uma requisição cujo
+**Critério de aceitação:** nenhuma chamada ao Blockscout para uma requisição
+cujo
 pagamento não foi validado.
 
 ### Por que a claim do produto sobrevive (verificado, não é opinião)
@@ -195,9 +207,11 @@ demonstrável na linha 232 de uma dependência, em vez de depender da ordem dos
 
 ### Riscos ao fluxo legítimo (já checados)
 
-- O `paymentMiddleware` intercepta `res.write`/`res.end`/`writeHead` até liquidar.
+- O `paymentMiddleware` intercepta `res.write`/`res.end`/`writeHead` até
+  liquidar.
   O 403 do gate é bufferizado e reemitido nas linhas 238-243. ✅ Funciona.
-- `res.setHeader` **não** é interceptado, então o `X-KYA-Verdict` (`src/gate.ts:123`)
+- `res.setHeader` **não** é interceptado, então o `X-KYA-Verdict`
+  (`src/gate.ts:123`)
   continua chegando. ✅ Funciona.
 - Mudança real de comportamento: um agente recusado agora custa um round-trip ao
   facilitator. É custo do vendedor, não da cota do Blockscout. ✅ Aceitável.
@@ -205,7 +219,8 @@ demonstrável na linha 232 de uma dependência, em vez de depender da ordem dos
 ### Opções descartadas (não reabrir)
 
 - **Opção B — gate valida assinatura sozinho.** `x402/schemes` só exporta
-  `decodePayment`/`encodePayment`. `x402/facilitator` exporta um `verify` completo
+  `decodePayment`/`encodePayment`. `x402/facilitator` exporta um `verify`
+  completo
   mas exige `viem ConnectedClient` com RPC (é chamada de rede do mesmo jeito, e
   ainda faz checagem de saldo on-chain). EIP-3009 na mão com viem: um mismatch
   sutil de domínio EIP-712 rejeita pagador legítimo em silêncio. 1-2 dias, risco
@@ -250,7 +265,8 @@ curl -sS -D- "http://localhost:4021/chem?q=x" -H "X-PAYMENT: $HDR" | head -20
 curl -sS -o /dev/null -w '%{http_code}\n' "http://localhost:4021/nem-existe" -H "X-PAYMENT: $HDR"
 ```
 
-**Esperado:** o terminal 1 conta até 6 em cada curl. O segundo curl devolve 404 —
+**Esperado:** o terminal 1 conta até 6 em cada curl. O segundo curl devolve 404
+—
 e mesmo assim gastou as 6.
 
 ---
@@ -316,7 +332,8 @@ test('um X-PAYMENT forjado chega ao Blockscout zero vezes', async () => {
 
 ## 7. Os quatro pontos de documentação a corrigir
 
-Depois do fix, estas quatro afirmações ficam **falsas** e precisam ser reescritas:
+Depois do fix, estas quatro afirmações ficam **falsas** e precisam ser
+reescritas:
 
 1. `src/gate.ts:1-38`
 2. `DECISIONS.md:59`
@@ -324,6 +341,7 @@ Depois do fix, estas quatro afirmações ficam **falsas** e precisam ser reescri
 4. `docs/CODE-REFERENCE.md:333`
 
 **A distinção exata:**
+
 - ❌ "o gate responde antes do x402-express rodar" → agora é falso
 - ✅ "quem é recusado não paga" → continua verdadeiro (garantido por
   `x402-express/index.mjs:232`, não pela ordem dos `app.use`)
@@ -340,23 +358,26 @@ Tudo abaixo é bom e nada disso é o fix:
   é a defesa em profundidade de maior retorno por linha, mas fica para depois)
 - Cache negativo curto por endereço
 - `CACHE_DIR` configurável (a menos que seja a solução escolhida no item 6)
-- Reclassificar `NoFixtureError` (`src/history.ts:61`): herda de `BlockscoutError`,
+- Reclassificar `NoFixtureError` (`src/history.ts:61`): herda de
+  `BlockscoutError`,
   então em modo offline um payer sem fixture cai no ramo upstream
   (`src/gate.ts:109`) e o 503 devolve a lista de endereços com fixture
-  (`src/history.ts:67-71`). É enumeração de fixtures, não vazamento de credencial,
-  e `src/server.ts:225,269` já expõe fixtures de propósito. Registrado, não urgente.
+  (`src/history.ts:67-71`). É enumeração de fixtures, não vazamento de
+  credencial,
+  e `src/server.ts:225,269` já expõe fixtures de propósito. Registrado, não
+  urgente.
 - Rate limit por IP (o que menos entrega)
 
 ---
 
 ## 9. A chave do Blockscout NÃO vaza (verificado, não reinvestigar)
 
-| Canal | Verificação |
+|Canal|Verificação|
 |---|---|
-| URL | `v2Url` e `etherscanUrl` (`src/blockscout.ts:236-243`) não incluem a chave. Só header `authorization: Bearer ${apiKey}` (`:258`). Intenção declarada em `:246`. |
-| Exceção | Nenhuma interpola `apiKey`. `:276` cita o **nome** da env var, não o valor. `:263` interpola `(cause as Error).message`. `:281` interpola status/statusText. `:317` interpola texto do upstream. |
-| Log | `src/server.ts:273,277` e `src/gate.ts:111` logam `error`/`error.message`. Nada carrega a chave. |
-| Resposta de erro | `src/gate.ts:112-118` devolve `detail = error.message`. Não contém a chave. |
+|URL|`v2Url` e `etherscanUrl` (`src/blockscout.ts:236-243`) não incluem a chave. Só header `authorization: Bearer ${apiKey}` (`:258`). Intenção declarada em `:246`.|
+|Exceção|Nenhuma interpola `apiKey`. `:276` cita o **nome** da env var, não o valor. `:263` interpola `(cause as Error).message`. `:281` interpola status/statusText. `:317` interpola texto do upstream.|
+|Log|`src/server.ts:273,277` e `src/gate.ts:111` logam `error`/`error.message`. Nada carrega a chave.|
+|Resposta de erro|`src/gate.ts:112-118` devolve `detail = error.message`. Não contém a chave.|
 
 ---
 
@@ -376,9 +397,11 @@ parecendo não corrigida. O fix só é demonstrável contra o facilitator real
 
 ### As opções
 
-- **(a)** Demo passa a exigir `DEMO_ESTABLISHED_PRIVATE_KEY` para o `established`.
+- **(a)** Demo passa a exigir `DEMO_ESTABLISHED_PRIVATE_KEY` para o
+  `established`.
   Recomendação do Claude Code local. Contra: mata justamente o que a banca
-  elogiou ("qualquer pessoa abre, sem carteira, e entende por que a nota é aquela").
+  elogiou ("qualquer pessoa abre, sem carteira, e entende por que a nota é
+  aquela").
 - **(b) RECOMENDADA — declarar em vez de mudar.** Default continua simulado, mas
   a saída imprime rótulo explícito de que o facilitator stub aceita qualquer
   assinatura, e o README documenta a linha do modo `--real`. Converte "o demo
@@ -392,16 +415,16 @@ parecendo não corrigida. O fix só é demonstrável contra o facilitator real
 
 ## 11. Ordem de execução e checkpoints
 
-| # | Passo | Como sei que passou |
+|#|Passo|Como sei que passou|
 |---|---|---|
-| 1 | Identificar entrypoint do Railway | Resposta explícita: `src/server.ts` ou `demo/paid-endpoint.ts` |
-| 2 | Reproduzir com o contador local (§5) | Terminal 1 conta 6 por curl, inclusive no 404 |
-| 3 | Escrever o teste #6 | Roda e **falha**, com a mensagem "o gate gastou crédito..." |
-| 4 | Aplicar Opção A (§4) | `~10 linhas` em `demo/paid-endpoint.ts`, zero em `src/gate.ts` |
-| 5 | Rodar o teste #6 | **Verde**, e o controle (asserção 2) também passa |
-| 6 | Rodar a suíte inteira | Nenhuma regressão |
-| 7 | Corrigir os 4 pontos de doc (§7) | Nenhuma menção sobrevivente à ordem antiga |
-| 8 | Commit único | Mensagem descreve o quê e o porquê, sem inflar |
+|1|Identificar entrypoint do Railway|Resposta explícita: `src/server.ts` ou `demo/paid-endpoint.ts`|
+|2|Reproduzir com o contador local (§5)|Terminal 1 conta 6 por curl, inclusive no 404|
+|3|Escrever o teste #6|Roda e **falha**, com a mensagem "o gate gastou crédito..."|
+|4|Aplicar Opção A (§4)|`~10 linhas` em `demo/paid-endpoint.ts`, zero em `src/gate.ts`|
+|5|Rodar o teste #6|**Verde**, e o controle (asserção 2) também passa|
+|6|Rodar a suíte inteira|Nenhuma regressão|
+|7|Corrigir os 4 pontos de doc (§7)|Nenhuma menção sobrevivente à ordem antiga|
+|8|Commit único|Mensagem descreve o quê e o porquê, sem inflar|
 
 **Um commit.** A bifurcação da demo e a defesa em profundidade são commits
 separados, depois.
@@ -410,9 +433,11 @@ separados, depois.
 
 ## 12. Contexto do projeto (para quem abrir isto sem memória)
 
-**KYA — Know Your Agent.** Lê o histórico on-chain de um endereço na Base e emite
+**KYA — Know Your Agent.** Lê o histórico on-chain de um endereço na Base e
+emite
 um veredito de reputação assinado antes de o pagamento x402 liquidar. Três eixos
-em média geométrica ponderada (funding provenance 0.40, maturity 0.35, volume 0.25),
+em média geométrica ponderada (funding provenance 0.40, maturity 0.35, volume
+0.25),
 limiares calibrados em 30 endereços rotulados, gate de sanções binário fora do
 score, atestado EIP-191. Sem contrato, sem LLM, por decisão de design.
 
