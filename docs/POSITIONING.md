@@ -1,14 +1,12 @@
 # KYA: Positioning, monetization, and one correction
 
-> Written for three questions from the judging panel that did not get a full
-> answer on the call:
+> Three questions this document exists to answer, one section each:
 >
-> - *"What's your competitive advantage? That was the main question that I kept
->   in my head throughout the presentation"*: Coinbase already screens as a
->   facilitator, and there are good companies flagging addresses.
-> - *"Lack of data, principally on the idea of monetization."*
-> - *"Are the scoring rules on-chain?"*, which I answered wrongly on the call.
->   §3 retracts that answer in writing.
+> - *"What is the competitive advantage?"* — Coinbase already screens as a
+>   facilitator, and there are good companies flagging addresses. §1.
+> - *"Is there a business here — who pays, and what does it cost to run?"* — §2.
+> - *"Are the scoring rules on-chain?"* — an earlier verbal answer said, in
+>   effect, that they are not public; §3 retracts it in writing.
 >
 > Every number below is either read from this repository or explicitly labelled
 > as an external measurement with its source named.
@@ -58,8 +56,8 @@ curl https://mru-oracle.com/facilitator/kya/0xeB94Dd34439e017EBa695678265e44Ea12
 ```
 
 Their route is literally `/facilitator/kya/`. The acronym collides with this
-project's name and the two are unrelated, worth knowing before a judge clicks
-the link and asks.
+project's name and the two are unrelated, worth knowing before a reader clicks
+the link.
 
 What those two calls returned on 18 August 2026:
 
@@ -199,7 +197,7 @@ What actually exists is smaller, and worth naming precisely:
    zero.
 
 That is a thin moat, and I would rather say so than dress it up. It is thin in
-the way most application-layer moats are thin at week two: the defensibility
+the way most application-layer moats are thin at the start: the defensibility
 would have to come from being early to a specific integration surface and from
 the calibration getting better with real seller feedback, not from owning data
 nobody else can reach.
@@ -297,8 +295,8 @@ what the merchant test produces.
 
 ### 3.1 What I said, and why it was wrong
 
-Asked in the Q&A whether the scoring rules live on-chain, I answered that the
-formula is *"hidden at the back."*
+An earlier answer, given verbally, said the scoring formula is *"hidden at the
+back."*
 
 **That answer was wrong, and I am retracting it here in writing.** Nothing about
 the scoring is hidden. Every weight, every threshold, every cutoff and the entire
@@ -391,8 +389,8 @@ KYA at all.
 
 ### 3.4 "Not on-chain" and "hidden" are different claims
 
-They are worth separating carefully, because conflating them is what produced the
-wrong answer on the call.
+They are worth separating carefully, because conflating them produced the
+earlier wrong answer.
 
 **"On-chain" is a question about *where the computation runs*.** KYA's score is
 computed off-chain, in TypeScript, in the seller's process or on a KYA server.

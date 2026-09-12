@@ -55,8 +55,14 @@ so no single caller can spend the whole day's budget for everyone else.
 - [`docs/POSITIONING.md`](docs/POSITIONING.md): why this is not sanctions
   screening, who pays for it and what it costs to run, and where the scoring
   rules live.
-- [`DECISIONS.md`](DECISIONS.md): why each choice was made, what was measured
-  versus chosen, and the corrections to things that turned out wrong.
+- [`docs/API.md`](docs/API.md): the `GET /verify` contract: parameters,
+  headers, response format, status codes, and how to tell live, cache and
+  fixture apart.
+- [`docs/SECURITY-SUMMARY.md`](docs/SECURITY-SUMMARY.md): the security posture:
+  threat model, what the attestation does and does not prove, and the real
+  status of every known finding.
+- [`SECURITY.md`](SECURITY.md): how to report a vulnerability.
+- [`CONTRIBUTING.md`](CONTRIBUTING.md): build, test and pull-request flow.
 
 ![Two KYA panels side by side: the same address funder on both, scored 857 trusted and 60 suspicious](docs/ui.png)
 
@@ -230,8 +236,8 @@ wallet with history holding Sepolia USDC, and `DEMO_PAY_TO` to your address.
 
 ## Offline mode: fixtures are dated captures of live addresses
 
-Blockscout answered 500 for 23 of 30 addresses seven days before the pitch, so
-the demo does not depend on it being up:
+Blockscout answered 500 for 23 of 30 sampled addresses during an August 2026
+collection run, so the demo does not depend on it being up:
 
     npx tsx scripts/capture.ts                 # reads Blockscout NOW, writes data/fixtures/<address>.json
     npx tsx src/cli.ts --offline 0xeA25...     # replays the fixture, no network, no Blockscout key
@@ -306,6 +312,27 @@ getting `429` instead of a fixture), and deliberate mutations to `config.ts`, `v
 set because one is cancelled by an exchange funder at level 1.0 and the other by
 the EPS floor.
 
+## Limitations
+
+- **The score measures history, not the holder.** It does not prove identity,
+  intent, solvency or compliance. A high score says the wallet's observed Base
+  history looks established; it says nothing about who controls it or why it
+  acts.
+- **Attestations are point-in-time.** There is no expiry field: `issued_at` and
+  `evidence.fetched_at` carry the timestamps, and the consumer sets its own
+  freshness policy — including telling live, cache and fixture apart
+  (`X-KYA-Source`).
+- **Sanctions coverage is a static, dated snapshot.** The OFAC SDN extract is
+  refreshed by hand and goes stale between refreshes; the exchange funder list
+  is pinned to one Dune commit and ages the same way.
+- **The calibration set is small.** Thresholds come from 30 labelled
+  addresses; the `unknown` band exists because nothing in the set lives between
+  84 and 193, not because the band was probed.
+- **Security findings have real, open status.** What is known, and what has
+  and has not been fixed, is in
+  [`docs/SECURITY-SUMMARY.md`](docs/SECURITY-SUMMARY.md). No security
+  correction should be assumed applied unless that file says the code changed.
+
 ## Related work
 
 Credential systems (Visa TAP, Mastercard Verifiable Intent, Skyfire
@@ -329,10 +356,10 @@ prior x402 history required.
 ## Deliberately not in v0.1
 
 No LLM. No agent: this is the verification primitive, not a wallet with a
-chatbot. Roadmap, in order: a counterparty signal (measured and deferred, the
-popularity source times out on Base, see DECISIONS.md D17), a user rating layer
+chatbot. Roadmap, in order: a counterparty signal (measured and deferred: the
+popularity source times out on Base), a user rating layer
 where only addresses that actually paid an agent can rate it, ecosystem
 familiarity, an EIP-712 attestation a Solidity contract can consume, and a ZK
 credential binding an agent to its principal.
 
-Built solo in 14 days for the Borderless Web3 hackathon (Aug 2026).
+Solo project, first deployed August 2026.

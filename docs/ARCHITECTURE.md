@@ -1,8 +1,7 @@
 # KYA: System design
 
-> Written for the question asked in the Q&A: *"I felt a little bit hard to
-> understand the internal workflow of the application. If you have a high ground
-> vision of the architecture, like a simple system design."*
+> A high-ground view of the whole system: what runs where, in what order, and
+> what each step trusts.
 >
 > Clarity over completeness. Every number and path below is read from the
 > committed code, not recalled. This document is the map; the code is the
@@ -17,6 +16,7 @@
 5. [On-chain versus off-chain](#5-on-chain-versus-off-chain)
 6. [Stateless, and what happens when it falls over](#6-stateless-and-what-happens-when-it-falls-over)
 7. [Glossary](#7-glossary)
+8. [Limitations](#8-limitations)
 
 ---
 
@@ -469,7 +469,7 @@ pass itself off as a fresh read.
 | Blockscout hangs | 8 s timeout, 2 attempts → ~17 s, then the same fallback: replay if a capture exists, else `502` / `503` | No |
 | Blockscout rate-limits (429) | up to 3 dedicated retries honouring `Retry-After`, then the normal *retry* budget | No |
 | Bad or missing API key (401/402) | thrown immediately, no retry, with the actionable message | No |
-| `ATTESTER_PRIVATE_KEY` missing or malformed | `ConfigError` **at boot**: the process refuses to start | Nothing ever ran |
+| `ATTESTER_PRIVATE_KEY` missing or malformed | `ConfigError` at boot — the **server** refuses to start. A seller embedding the **gate** has no boot check: the misconfiguration surfaces on the first payer, as a `500` | No |
 | Offline mode, no fixture for the address | The server tries `data/fixtures/`, then `data/cache/` **at any age**, and only then answers `404` (`503` at the gate). A cache replay is labelled `X-KYA-Source: cache`, never passed off as a fixture or as a live read | No |
 | Unexpected error inside verify | `500`, *"payment refused before settlement"* | No |
 | **The whole KYA service is down** | The gate is middleware inside the seller's process: if `verify()` cannot answer, every paying request is refused `503` before settlement | No |
@@ -566,3 +566,42 @@ better is exactly why diversity and cadence ended at weight zero.
 A wallet with two years of Base activity and no prior x402 payment is a cold
 start to anything scoring x402 payment history, and a track record to KYA. That
 asymmetry is the argument in `POSITIONING.md` §1.4.
+
+---
+
+## 8. Limitations
+
+Stated as limitations, not footnotes:
+
+- **The attestation binds content, not freshness or audience.** The signed body
+  carries no `expires_at`, no nonce and no audience field. A consumer that
+  verifies only the signature will accept an old attestation, or one about a
+  different address than the one it is transacting with. Today freshness is the
+  consumer's policy, read from `issued_at` and `evidence.fetched_at`. A signed
+  expiry is the planned fix; it is **not** implemented.
+- **The gate reads the payer before the payment is verified.** `kyaGate()` names
+  the payer from the `X-PAYMENT` header and runs the full verification on that
+  address; the payment's own signature is checked later, by the payment
+  middleware. A request whose payment would never settle can still cause a
+  reputation read. It cannot move funds — an unsigned `from` never settles —
+  but it can cause work. Reported by an external security review received
+  2026-09-05; fix planned, **not** applied. See
+  [`SECURITY-SUMMARY.md`](SECURITY-SUMMARY.md).
+- **The score measures history, not the holder.** No claim about identity,
+  intent, solvency or compliance survives the signature check, and none is
+  made.
+- **The sanctions and exchange lists are static.** The OFAC extract is a dated
+  snapshot refreshed by hand; the exchange funder list is pinned to one Dune
+  commit. Both go stale between refreshes, and the attestation does not carry
+  a list age.
+- **The mixer gate has a known blind spot.** The three mixer addresses are
+  verified on chain 1; a Tornado Cash withdrawal later bridged to Base is not
+  caught by this branch (§4).
+- **The window is capped at 150 transactions.** Diversity and cadence are
+  computed over the last ≤ 150 transactions, so for a very active wallet those
+  signals describe the window, not the whole history. `tx_count` is separately
+  exact (`tx_count_exact`).
+- **Two signals ride at weight zero.** Counterparty diversity and recent
+  cadence were measured, did not separate the reference set, and are still
+  reported in every attestation instead of being dropped. Cadence enters the
+  score only as the burst penalty.
