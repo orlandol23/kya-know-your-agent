@@ -45,8 +45,9 @@ the spent budget carries `Retry-After`, counting down to 00:00 UTC.
 ### 200 · the attestation
 
 snake_case, every field always present (`null` over `undefined`), keys in
-canonical order (RFC 8785: sorted recursively, no whitespace), `signature`
-last. The values below are from the committed fixture for `0xeA25…9F04`,
+canonical order — sorted recursively, no whitespace (the canonical
+serialization used by this project, an RFC 8785-style subset) — with
+`signature` last. The values below are from the committed fixture for `0xeA25…9F04`,
 captured 2026-08-21; `…` marks where a real response carries longer values:
 
 ```jsonc
@@ -197,6 +198,10 @@ sets its own values; see `.env.example`):
 own process: `403` with the signed attestation in the body for `suspicious`,
 `X-KYA-Verdict: trusted | unknown` on pass, `503` (fail-closed) when the data
 source is unavailable. It does not degrade: it refuses before settlement rather
-than answer from older evidence. The full flow, including what each step
-trusts, is in [`ARCHITECTURE.md`](ARCHITECTURE.md).
-
+than answer from older evidence. A rejected request does not settle the x402
+payment; the seller may still incur verification cost, latency, upstream
+availability risk and resource-abuse risk. And in the current state the payer
+is read before the payment middleware's full cryptographic validation — an
+open finding, tracked in [`SECURITY-SUMMARY.md`](SECURITY-SUMMARY.md). The
+full flow, including what each step trusts, is in
+[`ARCHITECTURE.md`](ARCHITECTURE.md).

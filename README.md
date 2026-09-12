@@ -2,24 +2,22 @@
 
 ![CI](https://github.com/orlandol23/kya-know-your-agent/actions/workflows/ci.yml/badge.svg)
 
-**On-chain reputation for AI agents that pay through x402.**
+**A verification primitive for sellers that receive x402 payments.**
 
-AI agents already buy services with stablecoins over x402: 7M+ transactions in
-a rolling 30-day window (x402scan, Aug 2026), and over 100M cumulative for the
-protocol (Chainalysis, Coinbase, agenteconomy.to), at a sub-dollar average
-ticket. The seller sees a valid payment and nothing else: no history, no way to
-tell an established agent from a wallet created five minutes ago.
+KYA evaluates observable Base history before a seller decides whether a payer
+should continue through its payment flow. The result is a signed,
+point-in-time attestation with explicit evidence, source labels and
+consumer-controlled freshness rules.
 
-x402scan, the ecosystem's main explorer, built by Merit Systems and open
-source and not an official x402 project, has a per-address buyer page
-(`/buyer/<address>`, since March 2026) showing that address's x402 payment
-history. It has no public API for it, and it says nothing about a wallet's
-general Base history, which is the question KYA answers. So a wallet with two
-years of Base activity and no prior x402 payment has an empty buyer page:
-to anything reading x402 history it is a cold start, and to KYA it is a track
-record.
+KYA does not identify the person behind a wallet, certify intent or replace
+sanctions, KYC, KYB or fraud controls.
 
-KYA answers the missing question: **who is this agent, and what has it done?**
+Why Base history, not x402 payment history alone: a wallet's x402 payment
+history says nothing about its general Base history, and x402 is young enough
+that "no prior x402 payments" still describes most wallets. A wallet with two
+years of Base activity and no prior x402 payment is a cold start to anything
+scoring x402 payments only; to KYA it is a track record. KYA answers the
+broader question: **what has this wallet done on Base?**
 
 ## Live
 
@@ -122,10 +120,11 @@ Returns a signed attestation:
   if (signer !== KYA_ATTESTER) throw new Error('not signed by KYA')   // pin the attester you trust
   ```
 
-  The signed message is the attestation without `signature`, as canonical JSON
-  (RFC 8785: keys sorted recursively, no whitespace). The API serves it already
-  in that order, which is why `JSON.stringify` of the parsed body is enough in
-  JavaScript. In Python it is `json.dumps(body, sort_keys=True, separators=(',', ':'))`;
+  The signed message is the attestation without `signature`, in the canonical
+  serialization used by this project: keys sorted recursively, no whitespace
+  (an RFC 8785-style subset; full JCS conformance is not claimed). The API
+  serves it already in that order, which is why `JSON.stringify` of the parsed
+  body is enough in JavaScript. In Python it is `json.dumps(body, sort_keys=True, separators=(',', ':'))`;
   the two produce identical bytes. The attester address is printed when the
   server starts and echoed in `attester` for discovery, but a consumer decides
   which attester to trust, not the payload. A hosted deployment signs with its
@@ -139,9 +138,12 @@ Returns a signed attestation:
 ## The gate
 
 `kyaGate` is x402 middleware. It reads the payer address from the payment
-header and blocks `suspicious` agents with 403 **before settlement**: the
-rejected agent pays nothing, the seller risks nothing. `unknown` passes with
-an `X-KYA-Verdict` header; blocking it is the seller's choice.
+header and blocks `suspicious` agents with 403 **before settlement**. A
+rejected request does not settle the x402 payment: the rejected agent pays
+nothing. That is not the same as costing nothing — the seller may still incur
+verification cost, latency, upstream availability risk and resource-abuse
+risk. `unknown` passes with an `X-KYA-Verdict` header; blocking it is the
+seller's choice.
 
 ```ts
 import { paymentMiddleware } from 'x402-express'
@@ -153,11 +155,15 @@ app.get('/chem', handler)                                   // 3. served only pa
 ```
 
 The order is the mechanism: x402-express settles only after the handler answers
-2xx, and it never runs if the gate answered first. The gate reads
-`payload.authorization.from` from the `X-PAYMENT` header and does not check
-the signature over it; the payment middleware does, so a forged `from` fails
-there and never settles. Requests without a payment header pass through so the
-client can receive the 402 with the payment requirements.
+2xx, and it never runs if the gate answered first. In the current state the
+gate extracts the payer from the payment header before the x402 middleware's
+full cryptographic validation, which happens later in the same stack. An
+unauthenticated payment header can start verification work before it is
+rejected: it does not move funds, but it can consume data-provider resources
+and affect seller availability. That is an open finding, tracked with its real
+status in [`docs/SECURITY-SUMMARY.md`](docs/SECURITY-SUMMARY.md). Requests
+without a payment header pass through so the client can receive the 402 with
+the payment requirements.
 
 ![Terminal run of the demo: the established wallet is served 200, the fresh wallet is refused 403 before settlement](docs/x402-flow.png)
 
@@ -179,12 +185,14 @@ X-KYA-Verdict: suspicious
   "attestation": { "...": "the signed attestation above" } }
 ```
 
-`gated: true` means the compliance gate fired: the address was not scored, it
-was blocked. Two lists feed it, and they are not the same kind of obligation.
-The OFAC SDN list is a legal requirement. The mixer denylist is this project's
-own policy choice: Tornado Cash left the SDN list in March 2025, so no
-sanctions regime obliges it. If reputation cannot be read the gate fails closed
-with 503, still before settlement.
+`gated: true` means the policy gate fired: the address was not scored, it was
+blocked. KYA applies a technical policy based on a dated extract of
+sanctions-related data and an additional mixer denylist selected by this
+project. These inputs are not legal advice and do not replace the sanctions,
+KYC, KYB, fraud or compliance obligations applicable to a user. The extract is
+a versioned snapshot: it can be out of date, and it does not prove identity,
+intent or illegality. If reputation cannot be read the gate fails closed with
+503, still before settlement.
 
 ## Try it
 
@@ -266,11 +274,13 @@ than fail) but that it is never served **unlabelled**: `X-KYA-Source` names
 whichever source answered, and `evidence.fetched_at` carries the instant the
 chain was actually read.
 
-The Blockscout Free tier allows 5 requests per second (and 100,000 credits a
-day, renewed daily, at 20 per call, so roughly 700 verifies per day; the
-10-minute cache stretches that). The client paces every call to at most 4 per
-second, process-wide, and treats 429 as "wait what `Retry-After` says", so two
-panels verifying at once queue for ~3 s instead of tripping the limit.
+Live reads go to a metered API whose plan prices per call against a daily
+credit allowance (Blockscout Pro, checked 2026-08-18). One verification costs
+the same fixed number of calls whatever the address's size, and a repeat
+within the 10-minute cache costs nothing. The client paces every call to at
+most 4 per second, process-wide, and treats 429 as "wait what `Retry-After`
+says", so two panels verifying at once queue for ~3 s instead of tripping the
+limit.
 
 **Failure modes checked.** Three of them answer differently depending on whether
 the address has a committed fixture, which is the thing worth trying against the
@@ -337,21 +347,19 @@ the EPS floor.
 
 Credential systems (Visa TAP, Mastercard Verifiable Intent, Skyfire
 KYAPay, Trulioo/PayOS Digital Agent Passport, ERC-8004) issue an
-identity to the agent and require an acceptor. ERC-8004 also carries a
-Reputation Registry; a 2026 preprint measuring it as deployed found
-feedback rarely anchored in verifiable interaction and over ninety
-percent of reviewers on Base showing coordinated sybil behaviour.
+identity to the agent and require an acceptor to recognize it. ERC-8004
+also carries a Reputation Registry.
 
-History-based scoring of x402 payers exists: AgentQuay, DJD AgentScore,
-ACHIVX, AgentKarma, Agent402. They score the wallet's x402 payment
-history, which means a wallet with two years of Base activity and no
-prior x402 use is a cold start.
+History-based scoring of x402 payers exists (AgentQuay, DJD AgentScore,
+ACHIVX, AgentKarma, Agent402, as named in August 2026). They score the
+wallet's x402 payment history, which means a wallet with two years of Base
+activity and no prior x402 use is a cold start to them.
 
-KYA scores the wallet's general Base history, weights funding
-provenance highest because it is the most expensive signal to forge,
-keeps sanctions in a binary gate outside the score, and derives its
-thresholds from a committed labeled set. No issuer, no registry, no
-prior x402 history required.
+KYA scores the wallet's general Base history, weights funding provenance
+highest — a chosen ranking, argued in `src/config.ts`, not a measurement —
+keeps the sanctions/mixer policy in a binary gate outside the score, and
+derives its thresholds from a committed labelled set. No issuer, no
+registry, no prior x402 history required.
 
 ## Deliberately not in v0.1
 

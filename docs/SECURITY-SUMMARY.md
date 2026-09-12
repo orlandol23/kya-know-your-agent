@@ -1,6 +1,6 @@
 # Security summary
 
-> Status as of November 2026, describing the code on this branch. This change is
+> Status as of 2026-09-11 (code snapshot `c2d798a`). This change is
 > documentation only: **no security correction has been applied in it**, and no
 > claim below should be read as one. A finding's status changes only in the
 > commit that changes the code.
@@ -24,8 +24,9 @@ attestation should be read as any of those claims.
 - **Attacker positions considered:**
   - *forged attestation* — closed by verifying the signature against a pinned
     attester;
-  - *tampered attestation* — closed by canonical serialization (RFC 8785) plus
-    EIP-191, which binds the signature to the content;
+  - *tampered attestation* — closed by the project's canonical serialization
+    (keys sorted recursively, no whitespace) plus EIP-191, which binds the
+    signature to the content;
   - *stale or replayed data* — mitigated, not solved: every reply labels its
     source (`X-KYA-Source`) and carries `evidence.fetched_at`; freshness
     remains the consumer's policy (see open item 1);
@@ -36,7 +37,9 @@ attestation should be read as any of those claims.
 
 ## Signature and trust in the attester
 
-- Attestations are serialized as canonical JSON (RFC 8785) and signed EIP-191.
+- Attestations are serialized with the project's canonical serialization (keys
+  sorted recursively, no whitespace; an RFC 8785-style subset) and signed
+  EIP-191.
   Any consumer can recover the signer in three lines and compare it against the
   attester *it decided to trust*.
 - The `attester` field in the body is for discovery only. Trust is pinned out
@@ -61,13 +64,15 @@ None of the items below has been fixed in code as of this branch.
    policy. Found in the September 2026 security and architecture review;
    status: **open**.
 2. **A costly reputation read can be triggered before the payment signature is
-   checked.** The gate runs ahead of the payment middleware and names the payer
-   from the payment header without validating the payment's signature, which
-   the downstream x402 stack does later. A request whose payment would never
-   settle can still cause a reputation read. It cannot move funds — a payer
-   address that was not signed for never settles — but it can cause external
-   reads. Reported by an external security review received 2026-09-05;
-   status: **open, fix planned, not applied**.
+   checked.** In the current state, the gate extracts the payer from the
+   payment header before the x402 middleware's full cryptographic validation.
+   An unauthenticated payment header can start verification work before it is
+   rejected. It does not move funds, but it can consume data-provider
+   resources and affect seller availability. The fix is to validate payer
+   integrity before starting costly reads. Reported by an external security
+   review received 2026-09-05; status: **open, fix planned, not applied**.
+   The finding remains open until a code change and a regression test are
+   published.
 3. **Dependency advisories.** An `npm audit` on 2026-09-10 recorded 2 high
    advisories (axios 1.16.0, ws 8.18.0), both transitive through the
    `x402-express` dependency chain; neither is a direct dependency and neither
@@ -101,8 +106,8 @@ whole claim.
 
 ## Not included here
 
-This file deliberately contains no reproduction steps, no exploit payloads and
-no request recipes against the hosted deployment. Findings are described at
+This file deliberately contains no reproduction steps, no request recipes and
+no abuse arithmetic against the hosted deployment. Findings are described at
 the level needed to understand and fix them.
 
 ## Reporting a new issue

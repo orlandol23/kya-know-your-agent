@@ -27,8 +27,10 @@ the x402 payment middleware they already run. When a paying agent arrives, the
 gate reads the payer address out of the payment envelope, reads that address's
 history on Base, scores it, and either refuses the request with `403` or lets it
 through to the payment middleware. Because it sits in front, a refusal happens
-**before settlement**: the refused agent pays nothing and the seller risks
-nothing. The same pipeline is exposed as `GET /verify?address=0x…`, which returns
+**before settlement**: the refused request does not settle the x402 payment.
+Not settling is not the same as costing nothing — the seller may still incur
+verification cost, latency, upstream availability risk and resource-abuse risk.
+The same pipeline is exposed as `GET /verify?address=0x…`, which returns
 a signed attestation anyone can check without calling KYA again.
 
 ---
@@ -147,8 +149,8 @@ moves.
 |---|---|---|
 | No `X-PAYMENT` header | `next()` | There is no payer to check yet. The payment middleware must be allowed to answer `402` with the price, which is how the client learns what to pay. |
 | Header present, no decodable payer | `next()` | The gate never invents a verdict for a payer it cannot name. The payment middleware rejects it as malformed. |
-| Payer present | Reads `payload.authorization.from` **without checking the signature over it** | The payment middleware behind it does check. A forged `from` fails there and never settles, so the only address that can be charged is the one that signed. Duplicating the check buys no security and costs a crypto dependency in the hot path. |
-| **A forged header**: 40 hex characters in `from`, no valid signature over them | ⚠️ Verifies that address's reputation **in full**, at the seller's expense, before anything downstream ever looks at the signature | **A known limitation, not a design choice**, and the cost of the row above. The forgery cannot settle, but it has already spent 6 Blockscout calls on the seller's own key by the time it is rejected. (Six, not seven: an address with no history reports a counter consistent with an empty window, so there is no re-read.) At the Free tier's 5,000 calls a day that is roughly **833 forged headers to drain the quota**, after which the gate fails closed with `503` for every legitimate buyer until the UTC day rolls over: a cheap denial of service against the seller, costing the attacker nothing but bandwidth. The daily budget in `src/server.ts` does not cover this: it guards `GET /verify`, not the gate. The mitigation is to recover the EIP-3009 signer with viem and drop the request when it does not match `from`: entirely offline, no new dependency since viem is already in the tree, and it moves the check to before the spend instead of after. **Not in v0.1.** |
+| Payer present | Reads the payer out of the payment header **before the payment middleware's cryptographic validation**, which happens later in the same stack | The payment middleware does check the signature before anything settles, so an unvalidated payer never settles. The gate does not duplicate that check in the hot path. The gap between the two checks is an open finding: see [`SECURITY-SUMMARY.md`](SECURITY-SUMMARY.md). |
+| **An unauthenticated payment header** (no valid signature over the payer it names) | ⚠️ Verifies that address's reputation **in full**, at the seller's expense, before anything downstream looks at the signature | **A known limitation, not a design choice**, and the cost of the row above. It does not move funds — an unvalidated payment never settles — but it can consume data-provider resources and affect seller availability. The fix is to validate payer integrity before starting costly reads. **Status: open; fix planned, not applied.** See [`SECURITY-SUMMARY.md`](SECURITY-SUMMARY.md). |
 
 **Verdict handling:** only `suspicious` blocks. `trusted` and `unknown` both pass
 through with an `X-KYA-Verdict` header, and the gate stores the full verification
@@ -164,7 +166,7 @@ is also what `GET /verify` and the CLI call. There is exactly one definition of
 "verify" in the codebase.
 
 ```
-   X-PAYMENT header (base64 JSON)
+   X-PAYMENT header
         │  payerFromPaymentHeader()                              gate.ts
         ▼
    payer 0x…
@@ -198,7 +200,7 @@ is also what `GET /verify` and the CLI call. There is exactly one definition of
    │        │                                                                │
    │        ▼                                                                │
    │  buildAttestationBody() → signAttestation()                    attest.ts │
-   │        canonical JSON (RFC 8785) → EIP-191 signature                    │
+   │        canonical JSON (sorted keys) → EIP-191 signature                 │
    └─────────────────────────────────────────────────────────────────────────┘
         │
         ├─► suspicious (incl. gated) → 403 + reason + signed attestation
@@ -294,9 +296,9 @@ and no sanctions regime obliges it.
 
 | Axis | Weight | ZERO → FULL | Why that weight |
 |---|---|---|---|
-| funding | 0.40 | not normalized (`FUNDING_LEVEL` is already 0..1): exchange 1.0, unknown 0.35, none 0.05 | most expensive signal to forge: the first inbound names a real counterparty, and a custodial one has a KYC record behind it |
-| maturity | 0.35 | 3.03 → 532.09 days | forged only by waiting |
-| volume | 0.25 | 54.75 → 2236.25 transactions | forged cheaply with self-sends |
+| funding | 0.40 | not normalized (`FUNDING_LEVEL` is already 0..1): exchange 1.0, unknown 0.35, none 0.05 | argued the hardest axis to inflate: the first inbound names a real counterparty, and a custodian has a KYC record behind it. A chosen ranking, not a measurement |
+| maturity | 0.35 | 3.03 → 532.09 days | cannot be accelerated by spending; only time moves it |
+| volume | 0.25 | 54.75 → 2236.25 transactions | the easiest axis to inflate; which is why it carries the lowest weight |
 
 **Geometric, not a sum**, so a weak axis cannot be bought back with a strong one:
 an agent funded from nowhere cannot compensate with volume. With a sum it could.
@@ -342,8 +344,9 @@ funding axis is maxed for both. The entire difference is age and volume:
 ### 3.6 The attestation
 
 The body is snake_case, every field always present, `null` over `undefined`. It
-is serialized as **canonical JSON (RFC 8785: keys sorted recursively, no
-whitespace)** and signed **EIP-191** with a throwaway attester key that never
+is serialized with the project's canonical serialization (keys sorted
+recursively, no whitespace; an RFC 8785-style subset, full JCS conformance not
+claimed) and signed **EIP-191** with a throwaway attester key that never
 holds funds. The API serves the body already in canonical order, so in JavaScript
 the check needs no library:
 
@@ -371,7 +374,7 @@ expiry: consumers set their own freshness policy from those two timestamps.
 | Exchange identity of a funder | **Dune Spellbook**, model `cex_evms.addresses` | commit `9f61b0d` (2026-01-28), **4,957 addresses across 328 exchanges**, committed as `data/cex-addresses-evm.json`, rebuildable byte-for-byte by `scripts/build-cex-labels.ts`. Licence: BUSL 1.1, Dune Analytics AS, Change Date 2027-03-03 | 0 requests (in-process lookup) |
 | Mixer denylist | this project's own policy list, 3 Tornado Cash contracts verified on chain 1 on 2026-08-16 | static map in `src/funding.ts`. None is deployed at the same address on Base, so on Base this branch does not fire today: an L1 mixer withdrawal that was later bridged is **not** caught | 0 requests |
 | Exchange-class fallback | behavioural heuristic derived from the D2 harvest, fixed before looking at the result: an EOA with > 1M transactions on Base that was the first inbound source for ≥ 3 of 74 sampled wallets | 3 addresses in `src/funding.ts`; 2 of the 3 were later confirmed by the Dune list as Binance 76 and Bybit 6, the third is unnamed, not refuted | 0 requests |
-| Payer identity | **x402 v1 `X-PAYMENT` header**, base64 JSON, field `payload.authorization.from` | supplied by the paying client; signature checked downstream by the payment middleware, not by the gate | 0 requests |
+| Payer identity | **x402 v1 `X-PAYMENT` header**, payer at field `payload.authorization.from` | supplied by the paying client; signature checked downstream by the payment middleware, not by the gate | 0 requests |
 | Evidence link | `base.blockscout.com` public explorer | string only, **never called** | 0 requests |
 
 Calibration inputs, off the hot path entirely: `data/addresses.csv` (the frame:
@@ -411,7 +414,7 @@ What KYA offers *instead of* on-chain execution is verifiability of the
 evidence, computed by rules that are committed in the repository. That is a
 genuinely different guarantee from on-chain execution, and it is not being sold
 as the same thing: see
-[`docs/POSITIONING.md` §3](POSITIONING.md#3-correction-the-scoring-rules-are-public).
+[`docs/POSITIONING.md` §3](POSITIONING.md#3-the-scoring-rules-are-public).
 An EIP-712 attestation a Solidity contract can consume directly is roadmap, not
 v0.1.
 
@@ -540,7 +543,9 @@ attester it decided to trust.
 **RFC 8785 (JCS)**: JSON Canonicalization Scheme, one deterministic byte
 sequence for a given JSON value (keys sorted recursively, no whitespace). Without
 it, two languages could serialize the same attestation differently and the
-signature would fail to verify for no real reason.
+signature would fail to verify for no real reason. KYA's implementation is the
+key-sorting, no-whitespace subset of this scheme; full JCS conformance is not
+claimed.
 
 **SDN**: Specially Designated Nationals, the sanctions list published by the US
 Treasury's OFAC. KYA extracts the entries carrying an Ethereum address and uses
@@ -579,14 +584,16 @@ Stated as limitations, not footnotes:
   different address than the one it is transacting with. Today freshness is the
   consumer's policy, read from `issued_at` and `evidence.fetched_at`. A signed
   expiry is the planned fix; it is **not** implemented.
-- **The gate reads the payer before the payment is verified.** `kyaGate()` names
-  the payer from the `X-PAYMENT` header and runs the full verification on that
-  address; the payment's own signature is checked later, by the payment
-  middleware. A request whose payment would never settle can still cause a
-  reputation read. It cannot move funds — an unsigned `from` never settles —
-  but it can cause work. Reported by an external security review received
-  2026-09-05; fix planned, **not** applied. See
-  [`SECURITY-SUMMARY.md`](SECURITY-SUMMARY.md).
+- **The gate reads the payer before the payment is verified.** In the current
+  state, the gate extracts the payer from the payment header before the x402
+  middleware's full cryptographic validation, which happens later in the same
+  stack. An unauthenticated payment header can start verification work before
+  it is rejected. It does not move funds, but it can consume data-provider
+  resources and affect seller availability. The fix is to validate payer
+  integrity before starting costly reads. Reported by an external security
+  review received 2026-09-05; status: **open, fix planned, not applied**. The
+  finding remains open until a code change and a regression test are
+  published. See [`SECURITY-SUMMARY.md`](SECURITY-SUMMARY.md).
 - **The score measures history, not the holder.** No claim about identity,
   intent, solvency or compliance survives the signature check, and none is
   made.

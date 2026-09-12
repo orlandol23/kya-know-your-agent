@@ -1,21 +1,21 @@
-# KYA: Positioning, monetization, and one correction
+# KYA: Positioning
 
 > Three questions this document exists to answer, one section each:
 >
-> - *"What is the competitive advantage?"* — Coinbase already screens as a
->   facilitator, and there are good companies flagging addresses. §1.
+> - *"What is the competitive advantage?"* — §1.
 > - *"Is there a business here — who pays, and what does it cost to run?"* — §2.
-> - *"Are the scoring rules on-chain?"* — an earlier verbal answer said, in
->   effect, that they are not public; §3 retracts it in writing.
+> - *"Are the scoring rules on-chain?"* — §3.
 >
-> Every number below is either read from this repository or explicitly labelled
-> as an external measurement with its source named.
+> Every number below is either read from this repository (with the file or
+> script named) or explicitly labelled as an external measurement with its
+> source, date and scope. Hypotheses about the market are labelled as
+> hypotheses.
 
 **Contents**
 
 1. [Competitive advantage](#1-competitive-advantage)
-2. [Monetization](#2-monetization)
-3. [Correction: the scoring rules are public](#3-correction-the-scoring-rules-are-public)
+2. [Who pays, and what it costs](#2-who-pays-and-what-it-costs)
+3. [The scoring rules are public](#3-the-scoring-rules-are-public)
 
 ---
 
@@ -45,19 +45,11 @@ compliance facilitator built by **Mauritius Oracle**: **11 screening layers with
 multi-hop fund tracing**. Its block threshold of **76 is declared in SENTINEL's
 own response payload**: it is not a number I inferred from the results.
 
-The endpoint is public and free, so **anyone can reproduce this with one curl**,
-no key and no account:
-
-```
-GET https://mru-oracle.com/facilitator/kya/{address}
-
-curl https://mru-oracle.com/facilitator/kya/0xBEabA203Ef49Ee2828b77b0B7E84839e76092787
-curl https://mru-oracle.com/facilitator/kya/0xeB94Dd34439e017EBa695678265e44Ea12E16B97
-```
-
-Their route is literally `/facilitator/kya/`. The acronym collides with this
-project's name and the two are unrelated, worth knowing before a reader clicks
-the link.
+The endpoint is public and free, no key and no account. The readings below are
+a dated snapshot of one call per address — a point-in-time observation, not an
+evaluation of either product. Their route is literally `/facilitator/kya/`; the
+acronym collides with this project's name and the two are unrelated, worth
+knowing before a reader clicks the link.
 
 What those two calls returned on 18 August 2026:
 
@@ -154,21 +146,19 @@ That produces a clean asymmetry in both directions:
 | 662.73 days on Base, 51,666 transactions, exchange-funded, but has never made an x402 payment | **cold start**: no payment history to score | **857, trusted** |
 | Created a week ago, but has already made a handful of x402 payments | some payment history to score | **suspicious**: 6.99 days and 42 transactions scores 60 |
 
-The first row is the one that matters commercially: the population of wallets
-with a long Base history vastly exceeds the population with an x402 payment
-history, and x402 is young enough that "no prior x402 payments" describes almost
-every wallet that has not yet arrived. A scorer that can only read x402 history
-has nothing to say about a new customer on their first purchase, which is
-exactly the moment a seller needs an answer.
+The first row is the one that matters commercially — as a working hypothesis,
+not a measurement: the population of wallets with a long Base history is
+plausibly much larger than the population with an x402 payment history, and
+x402 is young enough that "no prior x402 payments" describes most wallets that
+have not yet arrived. A scorer that can only read x402 history has nothing to
+say about a new customer on their first purchase, which is exactly the moment
+a seller needs an answer.
 
 The credential systems (Visa TAP, Mastercard Verifiable Intent, Skyfire KYAPay,
 Trulioo/PayOS Digital Agent Passport, ERC-8004) sit in a third category: they
 issue an identity to the agent and need an acceptor on the other side. KYA needs
 no issuer, no registry and no enrollment; it reads what the wallet already did.
-(ERC-8004 also ships a Reputation Registry. A 2026 preprint measuring it as
-deployed found feedback rarely anchored in verifiable interaction, and over 90%
-of reviewers on Base showing coordinated sybil behaviour. That is a **preprint**,
-not peer-reviewed, and should be cited as one.)
+(ERC-8004 also ships a Reputation Registry.)
 
 ### 1.5 Be honest about the moat: it is thin
 
@@ -212,7 +202,7 @@ back.
 
 ---
 
-## 2. Monetization
+## 2. Who pays, and what it costs
 
 ### 2.1 Who pays: the seller, because the seller carries the risk
 
@@ -231,99 +221,46 @@ It is also why KYA is middleware rather than a facilitator. A facilitator has to
 be chosen instead of another facilitator. A gate is mounted in front of the one
 already chosen, which is a much smaller decision to ask a seller to make.
 
-### 2.2 Cost: the data is nearly free, and stays nearly free at scale
+### 2.2 Cost profile
 
-Measured from the Blockscout Pro plans page (checked 2026-08-18) and from the
-request count in the code:
-
-```
-   Free tier          100,000 credits per DAY, renewed daily
-                      20 credits per API call
-                      5 requests/second
-
-   One verify         6 HTTP calls  (7 when /counters comes back cold)
-
-   100,000 / 20     = 5,000 calls per day
-   5,000 / 7        ≈   714 verifications per day   (worst case, cold counter)
-   5,000 / 6        ≈   833 verifications per day   (typical)
-```
-
-The 10-minute cache stretches that further: a repeat verification of the same
-address inside the window costs **zero** calls.
-
-The next tier is **$49/month for 100 million credits**. Taking those as the
-monthly allowance, the arithmetic is:
-
-```
-   100,000,000 / 20 = 5,000,000 calls per month
-   5,000,000 / 7    ≈ 714,000 verifications per month   (worst case)
-   $49 / 714,000    ≈ $0.00007 per verification
-```
-
-That is roughly **seven thousandths of one cent** per verification, and it does
-not degrade with scale: cost per verify is constant in the size of the address,
-because the 6 calls are constant in the size of the address. A 51,666-transaction
-wallet and a 42-transaction wallet cost the same to check.
-
-**The conclusion that matters:** reading the chain is not the economic
-constraint on this product. At any volume a seller would plausibly generate, the
-data cost rounds to nothing next to a single engineer-hour. **The bottleneck is
-adoption, not infrastructure**, and a business plan for KYA is a distribution
-plan, not a cost model.
-
-### 2.3 What is not decided: the price
-
-**I have not priced this, and I am not going to invent a number for a slide.**
-
-Every plausible shape is defensible on a whiteboard and undecidable without a
-customer: per-verification, a monthly seat for the seller, a percentage of the
-protected volume, free below a threshold with paid tiers above it, or open-source
-gate with a hosted attester. Picking one today would mean picking it from
-aesthetics.
-
-The order is deliberate: **the merchant test comes first, pricing comes after.**
-What a seller will pay depends on what the gate is worth to them, and what it is
-worth to them depends on how much abuse it actually refuses in their traffic,
-which is a measurement I do not have yet and cannot honestly estimate. The cost
-side is settled (§2.2: effectively zero, at any scale worth discussing), so
-pricing is entirely a question of demonstrated value, and demonstrated value is
-what the merchant test produces.
+The data is read from a metered API whose free tier prices per call against a
+daily credit allowance (Blockscout Pro, checked 2026-08-18). One verification
+costs the same fixed number of calls whatever the address's size, and a repeat
+within the 10-minute cache costs nothing. Reading the chain is not the economic
+constraint on this product; the constraint is adoption. That last part is a
+working hypothesis, not a measurement. Pricing is undecided: the merchant test
+(§1.5) comes first.
 
 ---
 
-## 3. Correction: the scoring rules are public
+## 3. The scoring rules are public
 
-### 3.1 What I said, and why it was wrong
+### 3.1 The direct answer
 
-An earlier answer, given verbally, said the scoring formula is *"hidden at the
-back."*
+**The scoring does not execute on-chain: it is computed off-chain in
+TypeScript. And every rule it uses is public, committed and reproducible.**
 
-**That answer was wrong, and I am retracting it here in writing.** Nothing about
-the scoring is hidden. Every weight, every threshold, every cutoff and the entire
-formula are committed in this repository, the calibration that produced the
-measured ones is reproducible with one command, and the per-request arithmetic
-ships in the API response.
-
-The correct answer to the question actually asked is two sentences:
-**No, the scoring does not execute on-chain: it is computed off-chain in
-TypeScript. And yes, every rule it uses is public, committed and reproducible.**
+Nothing about the scoring is hidden. Every weight, every threshold, every cutoff
+and the entire formula are committed in this repository, the calibration that
+produced the measured ones is reproducible with one command, and the
+per-request arithmetic ships in the API response.
 
 ### 3.2 Where every rule lives
 
 | What | File | What it holds |
 |---|---|---|
-| ZERO/FULL thresholds per axis | `src/config.ts:78` | `ageDays 3.03 → 532.09`, `txCount 54.75 → 2236.25` (**MEASURED**) |
-| Axis weights | `src/config.ts:88` | `funding 0.40`, `maturity 0.35`, `volume 0.25` (**CHOSEN**) |
-| Fallback weights without funding | `src/config.ts:99` | `maturity 0.58`, `volume 0.42` (**CHOSEN**) |
-| Funding class levels | `src/config.ts:115` | `exchange 1.0`, `unknown 0.35`, `none 0.05`, `mixer 0`, `sanctioned 0` (**CHOSEN**) |
-| Scale, floor, confidence constant | `src/config.ts:124` | `scale 1000`, `eps 0.02`, `confidenceK 25` (**CHOSEN**) |
-| Burst penalty | `src/config.ts:137` | `burstRatio > 50 → ×0.85` (**CHOSEN**) |
-| Verdict cutoffs | `src/config.ts:160` | `suspiciousMax 84`, `trustedMin 193` (**MEASURED**) |
-| The formula itself | `src/score.ts:108` | `scoreAddress()`: normalization, EPS floor, weighted geometric mean in log space, penalty, confidence, and the compliance gate that runs before all of it |
-| Cutoffs applied | `src/verdict.ts:29` | `verdictFor()`: ≤ 84 suspicious, ≥ 193 trusted, between = unknown |
+| ZERO/FULL thresholds per axis | `src/config.ts` | `ageDays 3.03 → 532.09`, `txCount 54.75 → 2236.25` (**MEASURED**) |
+| Axis weights | `src/config.ts` | `funding 0.40`, `maturity 0.35`, `volume 0.25` (**CHOSEN**) |
+| Fallback weights without funding | `src/config.ts` | `maturity 0.58`, `volume 0.42` (**CHOSEN**) |
+| Funding class levels | `src/config.ts` | `exchange 1.0`, `unknown 0.35`, `none 0.05`, `mixer 0`, `sanctioned 0` (**CHOSEN**) |
+| Scale, floor, confidence constant | `src/config.ts` | `scale 1000`, `eps 0.02`, `confidenceK 25` (**CHOSEN**) |
+| Burst penalty | `src/config.ts` | `burstRatio > 50 → ×0.85` (**CHOSEN**) |
+| Verdict cutoffs | `src/config.ts` | `suspiciousMax 84`, `trustedMin 193` (**MEASURED**) |
+| The formula itself | `src/score.ts` | `scoreAddress()`: normalization, EPS floor, weighted geometric mean in log space, penalty, confidence, and the compliance gate that runs before all of it |
+| Cutoffs applied | `src/verdict.ts` | `verdictFor()`: ≤ 84 suspicious, ≥ 193 trusted, between = unknown |
 | The reference set | `data/signals.csv` | 30 rows, committed on purpose: the evidence behind every calibrated number |
 | The calibration | `scripts/calibrate.ts` | reads `data/signals.csv`, prints every measured number and a paste-ready config block |
-| Per-request arithmetic | `src/server.ts:143` | `explain()`: what `?explain=1` returns |
+| Per-request arithmetic | `src/server.ts` | `explain()`: what `?explain=1` returns |
 
 `src/config.ts` labels each constant **MEASURED** or **CHOSEN** in the file
 itself, with the distinction spelled out at the top: MEASURED means it is the
@@ -389,8 +326,8 @@ KYA at all.
 
 ### 3.4 "Not on-chain" and "hidden" are different claims
 
-They are worth separating carefully, because conflating them produced the
-earlier wrong answer.
+They are worth separating carefully, because conflating them is a common way to
+overstate what a design guarantees.
 
 **"On-chain" is a question about *where the computation runs*.** KYA's score is
 computed off-chain, in TypeScript, in the seller's process or on a KYA server.
@@ -409,12 +346,13 @@ short version:
   It is the whole margin.
 
 **"Hidden" is a question about *whether anyone can see it*.** Nothing is hidden.
-§3.2 lists the file and line of every rule; §3.3 gives three independent ways to
+§3.2 lists the file that holds every rule; §3.3 gives three independent ways to
 reproduce the numbers without asking me for anything.
 
 **What KYA provides instead of on-chain execution is verifiability of the
-output.** The attestation is serialized as canonical JSON (RFC 8785: keys sorted
-recursively, no whitespace) and signed EIP-191, so any consumer (in any
+output.** The attestation is serialized with the project's canonical
+serialization (keys sorted recursively, no whitespace; an RFC 8785-style
+subset) and signed EIP-191, so any consumer (in any
 language, and a Solidity contract via `ecrecover`) can confirm who issued it in
 three lines, with no call to KYA:
 
