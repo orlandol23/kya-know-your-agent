@@ -66,6 +66,8 @@
   .source { display: inline-block; margin-top: 12px; font-size: 1rem; font-weight: 700; padding: 6px 12px; border-radius: var(--radius-sm); }
   .source.fixture { background: var(--fixture-tint); color: var(--fixture-ink); border: 2px solid var(--fixture); }
   .source.cache { background: var(--unknown-tint); color: var(--unknown-ink); }
+  .source.live { background: var(--trusted-tint); color: var(--trusted-ink); border: 2px solid var(--trusted); }
+  .source.degraded { background: var(--suspicious-tint); color: var(--suspicious-ink); border: 2px solid var(--suspicious); }
 
   /* A/B compare: two independent preflight panels. min() lets the track shrink
    * below 560px so a 320px phone never forces horizontal page overflow. */
@@ -185,12 +187,16 @@
   .unscored .k { color: var(--muted); }
   .note { font-size: 0.95rem; color: var(--muted); margin-top: 8px; }
 
-  /* Level 3 — proof trail: source, capture instant, attester, signature */
-  .evidence { font-size: 1.05rem; display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 16px; }
+  /* Level 3 — proof trail: provenance first, then the cryptographic attestation */
+  .proof-group { border: 2px solid var(--line); padding: 14px 16px; min-width: 0; }
+  .proof-group + .proof-group { border-top: 0; }
+  .proof-heading { margin: 0 0 10px; font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink); }
+  .evidence { font-size: 1.05rem; display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 8px 16px; }
   .evidence > * { min-width: 0; overflow-wrap: anywhere; }
   .evidence .k { color: var(--muted); }
   .evidence a { font-family: var(--mono); overflow-wrap: anywhere; }
   .evidence code { font-family: var(--mono); overflow-wrap: anywhere; }
+  .evidence .value { min-width: 0; overflow-wrap: anywhere; }
 
   /* Narrow viewports: the grid track shrinks with min(), so A/B stacks by
    * itself; here we tighten chrome so 320px stays usable, not hidden. */
@@ -207,6 +213,9 @@
     .axes { grid-template-columns: max-content max-content minmax(0, 1fr) max-content; column-gap: 6px; }
     .axes .raw { grid-column: 1 / -1; padding-left: 2px; }
     .decision { padding: 14px; }
+    .evidence { grid-template-columns: minmax(0, 1fr); gap: 2px 0; }
+    .evidence .k { margin-top: 8px; }
+    .evidence .value { min-width: 0; }
   }
 </style>
 </head>
@@ -288,8 +297,9 @@
   function verdictLabel(a) { return a.gated ? 'GATED' : a.verdict.toUpperCase() }
   const fmt = (n, d = 3) => Number(n).toFixed(d)
   const day = (iso) => iso ? iso.slice(0, 10) : 'n/a'
+  const timestamp = (value) => value ? value.replace('T', ' ').replace(/\.\d{3}Z$/, ' UTC').replace(/Z$/, ' UTC') : 'n/a'
 
-  function renderResult(container, { attestation: a, breakdown: b, source, captured_at }) {
+  function renderResult(container, { attestation: a, breakdown: b, source, captured_at, degraded }) {
     const cls = verdictClass(a)
     const frag = document.createDocumentFragment()
     // The cutoffs come from the server (config.ts), not from this file.
@@ -304,21 +314,13 @@
     if (a.gated) row.append(el('span', { class: 'gate-note', text: 'Policy gate: blocked before settlement · not scored' }))
     decision.append(row)
     decision.append(el('div', { class: 'address', text: a.address }))
-    // Where the history came from. A fixture is a dated capture of a live
-    // address; the attestation carries that date as evidence.fetched_at.
-    if (source === 'fixture') {
-      decision.append(el('div', { class: 'source fixture', text: `OFFLINE · fixture captured ${(captured_at || a.evidence.fetched_at).replace('T', ' ').slice(0, 16)} UTC, replayed without network` }))
-    } else if (source === 'cache') {
-      decision.append(el('div', { class: 'source cache', text: `cached · read ${(captured_at || a.evidence.fetched_at).replace('T', ' ').slice(0, 16)} UTC` }))
-    }
-
     // the reason: the most important text on the page
     decision.append(el('div', { class: `reason ${cls}`, text: a.summary }))
     decision.append(el('ul', { class: 'reasons' }, ...a.reasons.map((r) => el('li', { text: r }))))
     frag.append(decision)
 
     // 3. score against the calibrated cutoffs, then the axes
-    frag.append(el('h3', {}, 'Score composition ', el('span', { text: `· weighted geometric mean of three axes; a weak axis cannot be bought back with a strong one` })))
+    frag.append(el('h3', {}, 'Score composition ', el('span', { text: '· server-provided arithmetic; a weak axis cannot be bought back with a strong one' })))
     const { suspicious_max: sMax, trusted_min: tMin } = b.cutoffs
     const pct = (v) => `${(100 * Math.min(Math.max(v, 0), b.scale) / b.scale).toFixed(2)}%`
     frag.append(el('div', { class: 'scorebar' },
@@ -363,26 +365,43 @@
     ))
     frag.append(el('div', { class: 'note', text: 'Diversity and cadence did not separate the reference set (cadence was inverted: fresh bots fire 150 tx a day). Shown as evidence, not counted. Cadence only enters as a burst penalty.' }))
 
-    // 5. evidence
+    // 5. proof trail: provenance and attestation remain separate kinds of evidence.
     const e = a.evidence
-    frag.append(el('h3', {}, 'Proof trail ', el('span', { text: '· verify it yourself' })))
-    frag.append(el('div', { class: 'evidence' },
-      el('span', { class: 'k', text: 'Blockscout' }), el('a', { href: e.blockscout_url, target: '_blank', rel: 'noopener', text: `${e.blockscout_url.replace(/^https?:\/\//, '').replace(a.address, short(a.address))} ↗` }),
-      el('span', { class: 'k', text: 'window' }), el('span', { text: `last ${e.window.size} of ≤ ${e.window.max} transactions${e.window.capped ? ' (capped)' : ''} · chain ${e.chain_id} · fetched ${e.fetched_at.replace('T', ' ').slice(0, 19)} UTC` }),
-      el('span', { class: 'k', text: 'funder' }), el('span', {}, s.funding.source
-        ? el('span', {},
-            el('code', { text: s.funding.source }),
-            ` via ${s.funding.via}${s.funding.first_inbound_at ? `, ${day(s.funding.first_inbound_at)}` : ''}`,
-            // label_source non-null = exact match against a named, pinned list.
-            // Null on an exchange funder = the behavioural heuristic fired and
-            // nobody has named the wallet. The class, and so the score, is the
-            // same either way; only the strength of the claim differs.
-            s.funding.label_source
-              ? el('span', {}, ' · ', el('b', { text: s.funding.funder_label }), ` · identity confirmed · ${s.funding.label_source}`)
-              : s.funding.label ? ` · ${s.funding.label}${s.funding.class === 'exchange' ? ' · identity inferred, not confirmed' : ''}` : '')
-        : 'no inbound transfer ever'),
-      el('span', { class: 'k', text: 'attester' }), el('code', { text: a.attester }),
-      el('span', { class: 'k', text: 'signature' }), el('span', {}, el('code', { text: `${a.signature.slice(0, 26)}…` }), ` EIP-191, issued ${a.issued_at.replace('T', ' ').slice(0, 19)} UTC`),
+    frag.append(el('h3', {}, 'Proof trail ', el('span', { text: '· provenance and attestation' })))
+    const sourceText = source === 'fixture'
+      ? 'Fixture replay · captured data, replayed without network'
+      : source === 'cache'
+        ? 'Cache · stored upstream read, not a live read'
+        : source === 'live'
+          ? 'Live read · upstream response identified as live'
+          : `Source · ${source || 'unknown'}`
+    const sourceClass = degraded ? 'source degraded' : `source ${source || 'unknown'}`
+    frag.append(el('div', { class: 'proof-group' },
+      el('h4', { class: 'proof-heading' }, 'Evidence provenance'),
+      el('div', { class: 'evidence' },
+        el('span', { class: 'k', text: 'Source' }), el('span', { class: sourceClass, text: `${sourceText}${degraded ? ` · degraded: ${degraded}` : ''}` }),
+        el('span', { class: 'k', text: 'Captured' }), el('span', { class: 'value', text: timestamp(captured_at) }),
+        el('span', { class: 'k', text: 'Fetched' }), el('span', { class: 'value', text: timestamp(e.fetched_at) }),
+        el('span', { class: 'k', text: 'Chain' }), el('code', { class: 'value', text: String(e.chain_id) }),
+        el('span', { class: 'k', text: 'Window' }), el('span', { class: 'value', text: `last ${e.window.size} of ≤ ${e.window.max} transactions${e.window.capped ? ' · capped' : ''}` }),
+        el('span', { class: 'k', text: 'Funder' }), el('span', { class: 'value' }, s.funding.source
+          ? el('span', {},
+              el('code', { text: s.funding.source }),
+              ` via ${s.funding.via}${s.funding.first_inbound_at ? `, ${day(s.funding.first_inbound_at)}` : ''}`,
+              s.funding.label_source
+                ? el('span', {}, ' · ', el('b', { text: s.funding.funder_label }), ` · source ${s.funding.label_source}`)
+                : s.funding.label ? ` · ${s.funding.label}` : '')
+          : 'no inbound transfer ever'),
+        el('span', { class: 'k', text: 'Inspect source' }), el('a', { href: e.blockscout_url, target: '_blank', rel: 'noopener', text: `${e.blockscout_url.replace(/^https?:\/\//, '').replace(a.address, short(a.address))} ↗` }),
+      ),
+    ))
+    frag.append(el('div', { class: 'proof-group' },
+      el('h4', { class: 'proof-heading' }, 'Attestation'),
+      el('div', { class: 'evidence' },
+        el('span', { class: 'k', text: 'Attester' }), el('code', { class: 'value', text: a.attester }),
+        el('span', { class: 'k', text: 'Signature' }), el('code', { class: 'value', text: `${a.signature} · EIP-191` }),
+        el('span', { class: 'k', text: 'Issued' }), el('span', { class: 'value', text: timestamp(a.issued_at) }),
+      ),
     ))
 
     container.replaceChildren(frag)
@@ -419,7 +438,7 @@
       let body = null
       try { body = await res.json() } catch { /* not JSON */ }
       if (res.status === 200 && body && body.attestation) {
-        renderResult(container, body)
+        renderResult(container, { ...body, degraded: res.headers.get('X-KYA-Degraded') })
       } else if (res.status === 400) {
         renderError(container, 'Not a valid address', body?.error || `HTTP 400`)
       } else if (res.status === 404 && body?.offline) {
