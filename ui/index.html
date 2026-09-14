@@ -101,6 +101,9 @@
   .panel-head span { font-size: 0.95rem; color: var(--muted); }
   .panel-head strong { font-weight: 700; }
   .panel form { display: flex; flex-wrap: wrap; gap: 12px; }
+  .field-label {
+    display: block; width: 100%; margin: 0 0 6px; font-size: 0.9rem; font-weight: 700; color: var(--muted);
+  }
   .panel input[type=text] {
     flex: 1 1 220px; min-width: 0; padding: 12px 14px; font-family: var(--mono); font-size: 1.05rem;
     border: 2px solid var(--line); border-radius: var(--radius-sm); color: var(--ink); background: #fff;
@@ -228,8 +231,8 @@
   </div>
   <div class="meta">
     <div class="rule" id="rule">suspicious ≤ 84 &lt; unknown &lt; 193 ≤ trusted</div>
-    <label class="offline" id="offline-toggle" title="Replay the committed, dated fixtures in data/fixtures/ instead of reading Blockscout. For when Blockscout is down mid-demo.">
-      <input type="checkbox" id="offline"> fixture replay · offline
+    <label class="offline" id="offline-toggle" for="offline" title="Replay the committed, dated fixtures in data/fixtures/ instead of reading Blockscout. For when Blockscout is down mid-demo.">
+      <input type="checkbox" id="offline" aria-label="Replay committed fixtures in offline mode"> fixture replay · offline
     </label>
   </div>
 </header>
@@ -242,22 +245,28 @@
 <main>
   <section class="panel" data-panel="a" aria-label="Payer A">
     <div class="panel-head"><h2>Payer A</h2><span>independent preflight result</span></div>
-    <form>
-      <input type="text" name="address" placeholder="0x… payer address" autocomplete="off" spellcheck="false" aria-label="Payer A address">
-      <button type="submit" class="verify">Run preflight</button>
+    <form aria-label="Payer A address lookup">
+      <div style="flex: 1 1 100%; min-width: 0;">
+        <label class="field-label" for="payer-a-address">Payer A address</label>
+        <input id="payer-a-address" type="text" name="address" placeholder="0x… payer address" autocomplete="off" spellcheck="false" aria-label="Payer A address">
+      </div>
+      <button type="submit" class="verify" aria-label="Verify Payer A address">Verify Payer A</button>
     </form>
     <div class="presets"><span class="label">demo payers:</span></div>
-    <div class="result" aria-live="polite"><div class="idle">Enter a payer address, or pick a demo payer.</div></div>
+    <div class="result" aria-live="polite" aria-atomic="true"><div class="idle">Enter a payer address, or pick a demo payer.</div></div>
   </section>
 
   <section class="panel" data-panel="b" aria-label="Payer B">
     <div class="panel-head"><h2>Payer B</h2><span>independent preflight result</span></div>
-    <form>
-      <input type="text" name="address" placeholder="0x… payer address" autocomplete="off" spellcheck="false" aria-label="Payer B address">
-      <button type="submit" class="verify">Run preflight</button>
+    <form aria-label="Payer B address lookup">
+      <div style="flex: 1 1 100%; min-width: 0;">
+        <label class="field-label" for="payer-b-address">Payer B address</label>
+        <input id="payer-b-address" type="text" name="address" placeholder="0x… payer address" autocomplete="off" spellcheck="false" aria-label="Payer B address">
+      </div>
+      <button type="submit" class="verify" aria-label="Verify Payer B address">Verify Payer B</button>
     </form>
     <div class="presets"><span class="label">demo payers:</span></div>
-    <div class="result" aria-live="polite"><div class="idle">Enter a payer address, or pick a demo payer.</div></div>
+    <div class="result" aria-live="polite" aria-atomic="true"><div class="idle">Enter a payer address, or pick a demo payer.</div></div>
   </section>
 </main>
 
@@ -302,6 +311,10 @@
   function renderResult(container, { attestation: a, breakdown: b, source, captured_at, degraded }) {
     const cls = verdictClass(a)
     const frag = document.createDocumentFragment()
+    container.setAttribute('role', 'status')
+    container.setAttribute('aria-live', 'polite')
+    container.setAttribute('aria-atomic', 'true')
+    container.setAttribute('aria-busy', 'false')
     // The cutoffs come from the server (config.ts), not from this file.
     document.getElementById('rule').textContent = `suspicious ≤ ${b.cutoffs.suspicious_max} < unknown < ${b.cutoffs.trusted_min} ≤ trusted`
 
@@ -392,7 +405,13 @@
                 ? el('span', {}, ' · ', el('b', { text: s.funding.funder_label }), ` · source ${s.funding.label_source}`)
                 : s.funding.label ? ` · ${s.funding.label}` : '')
           : 'no inbound transfer ever'),
-        el('span', { class: 'k', text: 'Inspect source' }), el('a', { href: e.blockscout_url, target: '_blank', rel: 'noopener', text: `${e.blockscout_url.replace(/^https?:\/\//, '').replace(a.address, short(a.address))} ↗` }),
+        el('span', { class: 'k', text: 'Inspect source' }), el('a', {
+          href: e.blockscout_url,
+          target: '_blank',
+          rel: 'noopener',
+          'aria-label': `Open Blockscout evidence for ${short(a.address)}`,
+          text: `${e.blockscout_url.replace(/^https?:\/\//, '').replace(a.address, short(a.address))} ↗`,
+        }),
       ),
     ))
     frag.append(el('div', { class: 'proof-group' },
@@ -408,11 +427,19 @@
   }
 
   function renderError(container, title, detail) {
+    container.setAttribute('role', 'alert')
+    container.setAttribute('aria-live', 'assertive')
+    container.setAttribute('aria-atomic', 'true')
+    container.setAttribute('aria-busy', 'false')
     container.replaceChildren(el('div', { class: 'error' }, el('b', { text: title }), detail ? el('span', { text: detail }) : null))
   }
 
   function renderLoading(container, address) {
     const elapsed = el('span', { class: 'elapsed', text: '0s' })
+    container.setAttribute('role', 'status')
+    container.setAttribute('aria-live', 'polite')
+    container.setAttribute('aria-atomic', 'true')
+    container.setAttribute('aria-busy', 'true')
     container.replaceChildren(el('div', { class: 'status' },
       el('div', { class: 'spinner' }),
       el('span', {}, `Reading Base history for ${short(address)}… `, elapsed),
@@ -475,8 +502,9 @@
     })
     const presets = panel.querySelector('.presets')
     for (const p of PRESETS[key] || []) {
-      presets.append(el('button', { type: 'button', title: p.address, text: p.label }))
-      presets.lastChild.addEventListener('click', () => {
+      const presetButton = el('button', { type: 'button', title: p.address, 'aria-label': `Load demo payer ${p.label} for ${panel.dataset.panel.toUpperCase()}`, text: p.label })
+      presets.append(presetButton)
+      presetButton.addEventListener('click', () => {
         input.value = p.address
         void verifyInto(panel, p.address)
       })
