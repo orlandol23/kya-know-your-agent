@@ -69,12 +69,35 @@
 
   /* A/B compare: two independent preflight panels. min() lets the track shrink
    * below 560px so a 320px phone never forces horizontal page overflow. */
+  .compare-context {
+    margin: 0 0 18px;
+    border-top: 2px solid var(--line);
+    border-bottom: 2px solid var(--line);
+    background: var(--panel-2);
+    padding: 12px 14px;
+  }
+  .compare-context__label {
+    display: inline-block;
+    font-size: 0.75rem;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 4px;
+  }
+  .compare-context__text {
+    margin: 0;
+    font-size: 1.02rem;
+    color: var(--ink);
+    line-height: 1.4;
+  }
   main { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(560px, 100%), 1fr)); gap: 24px; align-items: start; }
 
-  .panel { background: var(--panel); border: 2px solid var(--line); border-radius: var(--radius); padding: 0 24px 26px; min-height: 420px; }
+  .panel { background: var(--panel); border: 2px solid var(--line); border-radius: var(--radius); padding: 0 24px 26px; min-height: 420px; min-width: 0; }
   .panel-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; background: var(--panel-2); border-bottom: 2px solid var(--line); border-radius: var(--radius) var(--radius) 0 0; margin: 0 -24px 18px; padding: 14px 24px 12px; }
   .panel-head h2 { margin: 0; font-size: 1.05rem; text-transform: uppercase; letter-spacing: 0.1em; }
   .panel-head span { font-size: 0.95rem; color: var(--muted); }
+  .panel-head strong { font-weight: 700; }
   .panel form { display: flex; flex-wrap: wrap; gap: 12px; }
   .panel input[type=text] {
     flex: 1 1 220px; min-width: 0; padding: 12px 14px; font-family: var(--mono); font-size: 1.05rem;
@@ -96,7 +119,7 @@
   .presets button:hover { border-color: var(--ink); }
   .presets button code { font-family: var(--mono); color: var(--muted); }
 
-  .result { margin-top: 22px; }
+  .result { margin-top: 22px; min-width: 0; }
   .status { display: flex; align-items: center; gap: 14px; font-size: 1.15rem; color: var(--muted); padding: 24px 0; }
   .status .spinner { width: 26px; height: 26px; border: 4px solid var(--line); border-top-color: var(--ink); border-radius: 50%; animation: spin 0.9s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
@@ -108,7 +131,7 @@
 
   /* Level 1 — the decision: payer inspected, reputation verdict, policy gate,
    * data source, main reason. One framed block, top of the reading order. */
-  .decision { border: 2px solid var(--line-strong); border-radius: var(--radius); padding: 18px 20px; }
+  .decision { border: 2px solid var(--line-strong); border-radius: var(--radius); padding: 18px 20px; min-width: 0; }
   .verdict-row { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
   .badge {
     display: inline-block; font-size: 2.6rem; font-weight: 800; letter-spacing: 0.04em; line-height: 1;
@@ -130,7 +153,7 @@
   .reason.unknown { color: var(--unknown-ink); border-color: var(--unknown); background: var(--unknown-tint); }
   .reason.suspicious { color: var(--suspicious-ink); border-color: var(--suspicious); background: var(--suspicious-tint); }
   .reason.gated { color: #fff; border-color: var(--suspicious); background: var(--gated); }
-  ul.reasons { margin: 0 0 4px; padding-left: 26px; font-size: 1.1rem; }
+  ul.reasons { margin: 0 0 4px; padding-left: 26px; font-size: 1.1rem; overflow-wrap: anywhere; }
   ul.reasons li { margin: 4px 0; }
 
   /* Levels 2 and 3 — each section starts under a full-width rule, so the score
@@ -157,12 +180,14 @@
   .formula { font-family: var(--mono); font-size: 0.95rem; color: var(--muted); margin-top: 10px; overflow-wrap: anywhere; }
 
   /* Level 2 — collected but not scored signals, kept visible at weight 0 */
-  .unscored { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; font-size: 1.05rem; }
+  .unscored { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 16px; font-size: 1.05rem; }
+  .unscored > * { min-width: 0; overflow-wrap: anywhere; }
   .unscored .k { color: var(--muted); }
   .note { font-size: 0.95rem; color: var(--muted); margin-top: 8px; }
 
   /* Level 3 — proof trail: source, capture instant, attester, signature */
-  .evidence { font-size: 1.05rem; display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; }
+  .evidence { font-size: 1.05rem; display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 16px; }
+  .evidence > * { min-width: 0; overflow-wrap: anywhere; }
   .evidence .k { color: var(--muted); }
   .evidence a { font-family: var(--mono); overflow-wrap: anywhere; }
   .evidence code { font-family: var(--mono); overflow-wrap: anywhere; }
@@ -177,6 +202,9 @@
   }
   @media (max-width: 480px) {
     :root { font-size: 18px; }
+    .verdict-row { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+    .badge { font-size: 1.7rem; padding: 8px 10px; border-width: 3px; }
+    .axes { grid-template-columns: max-content max-content minmax(0, 1fr) max-content; column-gap: 6px; }
     .axes .raw { grid-column: 1 / -1; padding-left: 2px; }
     .decision { padding: 14px; }
   }
@@ -197,11 +225,16 @@
   </div>
 </header>
 
+<div class="compare-context" aria-label="Comparison context">
+  <div class="compare-context__label">Comparison</div>
+  <p class="compare-context__text">Independent payer preflights · same verifier, separate payer histories, read-only comparison.</p>
+</div>
+
 <main>
   <section class="panel" data-panel="a" aria-label="Payer A">
-    <div class="panel-head"><h2>Payer A</h2><span>payer preflight · independent of Payer B</span></div>
+    <div class="panel-head"><h2>Payer A</h2><span>independent preflight result</span></div>
     <form>
-      <input type="text" name="address" placeholder="0x… payer address" autocomplete="off" spellcheck="false" aria-label="payer address">
+      <input type="text" name="address" placeholder="0x… payer address" autocomplete="off" spellcheck="false" aria-label="Payer A address">
       <button type="submit" class="verify">Run preflight</button>
     </form>
     <div class="presets"><span class="label">demo payers:</span></div>
@@ -209,9 +242,9 @@
   </section>
 
   <section class="panel" data-panel="b" aria-label="Payer B">
-    <div class="panel-head"><h2>Payer B</h2><span>payer preflight · independent of Payer A</span></div>
+    <div class="panel-head"><h2>Payer B</h2><span>independent preflight result</span></div>
     <form>
-      <input type="text" name="address" placeholder="0x… payer address" autocomplete="off" spellcheck="false" aria-label="payer address">
+      <input type="text" name="address" placeholder="0x… payer address" autocomplete="off" spellcheck="false" aria-label="Payer B address">
       <button type="submit" class="verify">Run preflight</button>
     </form>
     <div class="presets"><span class="label">demo payers:</span></div>
