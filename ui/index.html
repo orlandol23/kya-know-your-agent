@@ -63,7 +63,7 @@
   header .offline { display: flex; align-items: center; gap: 8px; font-size: 1rem; color: var(--muted); cursor: pointer; user-select: none; }
   header .offline input { width: 22px; height: 22px; accent-color: var(--fixture); cursor: pointer; }
   header .offline.on { color: var(--fixture-ink); font-weight: 700; }
-  .source { display: inline-block; margin-top: 12px; font-size: 1rem; font-weight: 700; padding: 6px 12px; border-radius: var(--radius-sm); }
+  .source { display: inline-block; font-size: 1rem; font-weight: 700; padding: 6px 12px; border-radius: var(--radius-sm); }
   .source.fixture { background: var(--fixture-tint); color: var(--fixture-ink); border: 2px solid var(--fixture); }
   .source.cache { background: var(--unknown-tint); color: var(--unknown-ink); }
   .source.live { background: var(--trusted-tint); color: var(--trusted-ink); border: 2px solid var(--trusted); }
@@ -227,7 +227,7 @@
   <div class="brand">
     <h1>KYA <span>· Know Your Agent</span></h1>
     <p class="tagline">Read-only payer preflight for x402 settlement</p>
-    <p class="lede">Reads a payer's Base track record and answers with a signed reputation verdict before settlement. Settlement integration is evaluated by the gate in the seller's own process; this hosted page reads and explains — it does not execute payment.</p>
+    <p class="lede">Reads a payer's Base track record and answers with a signed reputation verdict before settlement. The same check can run as a gate in the seller's own settlement process; this hosted page reads and explains — it does not execute payment.</p>
   </div>
   <div class="meta">
     <div class="rule" id="rule">suspicious ≤ 84 &lt; unknown &lt; 193 ≤ trusted</div>
@@ -282,7 +282,7 @@
     ],
     b: [
       { label: 'fresh · exchange-funded · days old', address: '0xBEabA203Ef49Ee2828b77b0B7E84839e76092787' },
-      { label: 'sanctioned · OFAC SDN', address: '0x098b716b8aaf21512996dc57eb0615e2383e2f96' },
+      { label: 'sanctioned · OFAC SDN', address: '0x098B716B8Aaf21512996dC57EB0615e2383E2f96' },
     ],
   }
   const TIMEOUT_MS = 90000
@@ -421,6 +421,7 @@
         el('span', { class: 'k', text: 'Signature' }), el('code', { class: 'value', text: `${a.signature} · EIP-191` }),
         el('span', { class: 'k', text: 'Issued' }), el('span', { class: 'value', text: timestamp(a.issued_at) }),
       ),
+      el('div', { class: 'note', text: 'The signature is EIP-191 over the canonical attestation body. Recover the signer and compare it with the attester address you trust.' }),
     ))
 
     container.replaceChildren(frag)
