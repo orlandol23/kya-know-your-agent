@@ -8,15 +8,19 @@
   /*
    * One file, no build, no dependency. Built to be read on a shared screen in a
    * video call: light theme, large type (nothing under 18px), high contrast.
-   * The verdict and the reason are the two biggest things on the page, on
-   * purpose: the pitch is "the reason is on screen", not "look at the score".
+   * The reading order is a preflight: the decision first (payer, reputation
+   * verdict, policy gate, main reason), then the score composition, then the
+   * proof trail. Rules, spacing and grouping carry the hierarchy; color is
+   * never the only signal — every state also carries a textual label.
    */
   :root {
     --bg: #f4f6f8;
     --panel: #ffffff;
+    --panel-2: #fafbfc;
     --ink: #1b1f24;
     --muted: #4b5563;
     --line: #d0d7de;
+    --line-strong: #8b949e;
     --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
     --trusted: #1a7f37;
     --trusted-ink: #0f5a25;
@@ -32,38 +36,81 @@
     --fixture: #9a6700;
     --fixture-ink: #7d4e00;
     --fixture-tint: #fff1c2;
+    --focus: #0969da;
+    --radius: 10px;
+    --radius-sm: 6px;
     font-size: 20px;
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; background: var(--bg); color: var(--ink); }
   body { font: 1rem/1.4 system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; padding: 24px 28px 48px; }
-  a { color: #0969da; }
+  a { color: var(--focus); }
   button { font: inherit; cursor: pointer; }
   input { font: inherit; }
+  :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
 
-  header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 28px; margin-bottom: 20px; }
+  /* Header: what this page is (read-only payer preflight) and what it is not
+   * (it does not execute settlement). The meta column holds the cutoff rule —
+   * text supplied by the server at render time — and the fixture-replay toggle. */
+  header { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 14px 36px; border-bottom: 2px solid var(--ink); padding-bottom: 18px; margin-bottom: 22px; }
+  header .brand { min-width: 0; flex: 1 1 320px; }
   header h1 { margin: 0; font-size: 2rem; letter-spacing: -0.01em; }
   header h1 span { color: var(--muted); font-weight: 500; }
-  header p { margin: 0; font-size: 1.15rem; color: var(--muted); }
-  header .rule { margin-left: auto; font-size: 1rem; color: var(--muted); font-family: var(--mono); }
+  header .tagline { margin: 6px 0 0; font-size: 1.15rem; font-weight: 700; }
+  header .lede { margin: 4px 0 0; font-size: 1.05rem; color: var(--muted); max-width: 68ch; }
+  header .meta { margin-left: auto; display: grid; gap: 10px; justify-items: end; align-content: start; }
+  header .rule { font-size: 1rem; color: var(--muted); font-family: var(--mono); }
   header .offline { display: flex; align-items: center; gap: 8px; font-size: 1rem; color: var(--muted); cursor: pointer; user-select: none; }
   header .offline input { width: 22px; height: 22px; accent-color: var(--fixture); cursor: pointer; }
   header .offline.on { color: var(--fixture-ink); font-weight: 700; }
-  .source { display: inline-block; margin-top: 12px; font-size: 1rem; font-weight: 700; padding: 6px 12px; border-radius: 8px; }
+  .source { display: inline-block; font-size: 1rem; font-weight: 700; padding: 6px 12px; border-radius: var(--radius-sm); }
   .source.fixture { background: var(--fixture-tint); color: var(--fixture-ink); border: 2px solid var(--fixture); }
   .source.cache { background: var(--unknown-tint); color: var(--unknown-ink); }
+  .source.live { background: var(--trusted-tint); color: var(--trusted-ink); border: 2px solid var(--trusted); }
+  .source.degraded { background: var(--suspicious-tint); color: var(--suspicious-ink); border: 2px solid var(--suspicious); }
 
-  main { display: grid; grid-template-columns: repeat(auto-fit, minmax(560px, 1fr)); gap: 24px; align-items: start; }
-
-  .panel { background: var(--panel); border: 2px solid var(--line); border-radius: 16px; padding: 22px 24px 26px; min-height: 420px; }
-  .panel form { display: flex; gap: 12px; }
-  .panel input[type=text] {
-    flex: 1; min-width: 0; padding: 12px 14px; font-family: var(--mono); font-size: 1.05rem;
-    border: 2px solid var(--line); border-radius: 10px; color: var(--ink); background: #fff;
+  /* A/B compare: two independent preflight panels. min() lets the track shrink
+   * below 560px so a 320px phone never forces horizontal page overflow. */
+  .compare-context {
+    margin: 0 0 18px;
+    border-top: 2px solid var(--line);
+    border-bottom: 2px solid var(--line);
+    background: var(--panel-2);
+    padding: 12px 14px;
   }
-  .panel input[type=text]:focus { outline: 3px solid #0969da; outline-offset: 1px; border-color: #0969da; }
+  .compare-context__label {
+    display: inline-block;
+    font-size: 0.75rem;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 4px;
+  }
+  .compare-context__text {
+    margin: 0;
+    font-size: 1.02rem;
+    color: var(--ink);
+    line-height: 1.4;
+  }
+  main { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(560px, 100%), 1fr)); gap: 24px; align-items: start; }
+
+  .panel { background: var(--panel); border: 2px solid var(--line); border-radius: var(--radius); padding: 0 24px 26px; min-height: 420px; min-width: 0; }
+  .panel-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; background: var(--panel-2); border-bottom: 2px solid var(--line); border-radius: var(--radius) var(--radius) 0 0; margin: 0 -24px 18px; padding: 14px 24px 12px; }
+  .panel-head h2 { margin: 0; font-size: 1.05rem; text-transform: uppercase; letter-spacing: 0.1em; }
+  .panel-head span { font-size: 0.95rem; color: var(--muted); }
+  .panel-head strong { font-weight: 700; }
+  .panel form { display: flex; flex-wrap: wrap; gap: 12px; }
+  .field-label {
+    display: block; width: 100%; margin: 0 0 6px; font-size: 0.9rem; font-weight: 700; color: var(--muted);
+  }
+  .panel input[type=text] {
+    flex: 1 1 220px; min-width: 0; padding: 12px 14px; font-family: var(--mono); font-size: 1.05rem;
+    border: 2px solid var(--line); border-radius: var(--radius-sm); color: var(--ink); background: #fff;
+  }
+  .panel input[type=text]:focus { outline: 3px solid var(--focus); outline-offset: 1px; border-color: var(--focus); }
   .panel button.verify {
-    padding: 12px 22px; font-size: 1.05rem; font-weight: 700; border-radius: 10px;
+    padding: 12px 22px; font-size: 1.05rem; font-weight: 700; border-radius: var(--radius-sm);
     border: 2px solid var(--ink); background: var(--ink); color: #fff;
   }
   .panel button.verify:disabled { opacity: 0.55; cursor: progress; }
@@ -77,20 +124,23 @@
   .presets button:hover { border-color: var(--ink); }
   .presets button code { font-family: var(--mono); color: var(--muted); }
 
-  .result { margin-top: 22px; }
+  .result { margin-top: 22px; min-width: 0; }
   .status { display: flex; align-items: center; gap: 14px; font-size: 1.15rem; color: var(--muted); padding: 24px 0; }
   .status .spinner { width: 26px; height: 26px; border: 4px solid var(--line); border-top-color: var(--ink); border-radius: 50%; animation: spin 0.9s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .status .spinner { animation: none; } }
   .status .elapsed { font-family: var(--mono); }
-  .error { border: 3px solid var(--suspicious); background: var(--suspicious-tint); color: var(--suspicious-ink); border-radius: 12px; padding: 16px 18px; font-size: 1.15rem; }
+  .error { border: 3px solid var(--suspicious); background: var(--suspicious-tint); color: var(--suspicious-ink); border-radius: var(--radius-sm); padding: 16px 18px; font-size: 1.15rem; }
   .error b { display: block; margin-bottom: 4px; }
   .idle { color: var(--muted); font-size: 1.1rem; padding: 24px 0; }
 
-  /* 1. the verdict */
+  /* Level 1 — the decision: payer inspected, reputation verdict, policy gate,
+   * data source, main reason. One framed block, top of the reading order. */
+  .decision { border: 2px solid var(--line-strong); border-radius: var(--radius); padding: 18px 20px; min-width: 0; }
   .verdict-row { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
   .badge {
     display: inline-block; font-size: 2.6rem; font-weight: 800; letter-spacing: 0.04em; line-height: 1;
-    padding: 14px 22px; border-radius: 12px; color: #fff; border: 4px solid transparent;
+    padding: 14px 22px; border-radius: var(--radius-sm); color: #fff; border: 4px solid transparent;
   }
   .badge.trusted { background: var(--trusted); }
   .badge.unknown { background: var(--unknown); }
@@ -102,20 +152,23 @@
   .score small { font-size: 1.1rem; font-weight: 500; color: var(--muted); margin-left: 6px; }
   .address { font-family: var(--mono); font-size: 1rem; color: var(--muted); margin-top: 10px; word-break: break-all; }
 
-  /* 2. the reason: the most important text on the page */
-  .reason { font-size: 1.55rem; font-weight: 700; line-height: 1.3; margin: 18px 0 8px; padding: 14px 18px; border-left: 8px solid; border-radius: 6px; }
+  /* the reason: the most important text on the page */
+  .reason { font-size: 1.55rem; font-weight: 700; line-height: 1.3; margin: 18px 0 8px; padding: 14px 18px; border-left: 8px solid; border-radius: var(--radius-sm); }
   .reason.trusted { color: var(--trusted-ink); border-color: var(--trusted); background: var(--trusted-tint); }
   .reason.unknown { color: var(--unknown-ink); border-color: var(--unknown); background: var(--unknown-tint); }
   .reason.suspicious { color: var(--suspicious-ink); border-color: var(--suspicious); background: var(--suspicious-tint); }
   .reason.gated { color: #fff; border-color: var(--suspicious); background: var(--gated); }
-  ul.reasons { margin: 0 0 4px; padding-left: 26px; font-size: 1.1rem; }
+  ul.reasons { margin: 0 0 4px; padding-left: 26px; font-size: 1.1rem; overflow-wrap: anywhere; }
   ul.reasons li { margin: 4px 0; }
 
-  h3 { font-size: 1rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 26px 0 10px; font-weight: 700; }
+  /* Levels 2 and 3 — each section starts under a full-width rule, so the score
+   * composition and the proof trail read as separate ledgers below the
+   * decision block. */
+  h3 { font-size: 1rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 28px 0 12px; padding-top: 14px; border-top: 2px solid var(--line); font-weight: 700; }
   h3 span { text-transform: none; letter-spacing: 0; font-weight: 500; }
 
-  /* 3. score bar with the calibrated cutoffs, then the three axes */
-  .scorebar { position: relative; height: 22px; border-radius: 6px; overflow: hidden; display: flex; border: 2px solid var(--line); }
+  /* Level 2 — score bar with the server-supplied cutoffs, then the axes */
+  .scorebar { position: relative; height: 22px; border-radius: var(--radius-sm); overflow: hidden; display: flex; border: 2px solid var(--line); }
   .scorebar .zone.s { background: var(--suspicious-tint); }
   .scorebar .zone.u { background: var(--unknown-tint); }
   .scorebar .zone.t { background: var(--trusted-tint); }
@@ -129,47 +182,91 @@
   .axes .bar { height: 20px; background: var(--unknown-tint); border-radius: 5px; overflow: hidden; }
   .axes .bar i { display: block; height: 100%; background: var(--ink); }
   .axes .value { font-family: var(--mono); font-variant-numeric: tabular-nums; }
-  .formula { font-family: var(--mono); font-size: 0.95rem; color: var(--muted); margin-top: 10px; }
+  .formula { font-family: var(--mono); font-size: 0.95rem; color: var(--muted); margin-top: 10px; overflow-wrap: anywhere; }
 
-  /* 4. collected, not scored */
-  .unscored { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; font-size: 1.05rem; }
+  /* Level 2 — collected but not scored signals, kept visible at weight 0 */
+  .unscored { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 16px; font-size: 1.05rem; }
+  .unscored > * { min-width: 0; overflow-wrap: anywhere; }
   .unscored .k { color: var(--muted); }
   .note { font-size: 0.95rem; color: var(--muted); margin-top: 8px; }
 
-  /* 5. evidence */
-  .evidence { font-size: 1.05rem; display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; }
+  /* Level 3 — proof trail: provenance first, then the cryptographic attestation */
+  .proof-group { border: 2px solid var(--line); padding: 14px 16px; min-width: 0; }
+  .proof-group + .proof-group { border-top: 0; }
+  .proof-heading { margin: 0 0 10px; font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink); }
+  .evidence { font-size: 1.05rem; display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 8px 16px; }
+  .evidence > * { min-width: 0; overflow-wrap: anywhere; }
   .evidence .k { color: var(--muted); }
   .evidence a { font-family: var(--mono); overflow-wrap: anywhere; }
   .evidence code { font-family: var(--mono); overflow-wrap: anywhere; }
+  .evidence .value { min-width: 0; overflow-wrap: anywhere; }
+
+  /* Narrow viewports: the grid track shrinks with min(), so A/B stacks by
+   * itself; here we tighten chrome so 320px stays usable, not hidden. */
+  @media (max-width: 720px) {
+    body { padding: 16px 14px 40px; }
+    header .meta { margin-left: 0; justify-items: start; }
+    .panel { padding: 0 16px 20px; }
+    .panel-head { margin: 0 -16px 14px; padding: 12px 16px 10px; }
+  }
+  @media (max-width: 480px) {
+    :root { font-size: 18px; }
+    .verdict-row { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+    .badge { font-size: 1.7rem; padding: 8px 10px; border-width: 3px; }
+    .axes { grid-template-columns: max-content max-content minmax(0, 1fr) max-content; column-gap: 6px; }
+    .axes .raw { grid-column: 1 / -1; padding-left: 2px; }
+    .decision { padding: 14px; }
+    .evidence { grid-template-columns: minmax(0, 1fr); gap: 2px 0; }
+    .evidence .k { margin-top: 8px; }
+    .evidence .value { min-width: 0; }
+  }
 </style>
 </head>
 <body>
 <header>
-  <h1>KYA <span>· Know Your Agent</span></h1>
-  <p>On-chain reputation for AI agents that pay through x402. Reads the agent's Base history, answers before the payment settles.</p>
-  <div class="rule" id="rule">suspicious ≤ 84 &lt; unknown &lt; 193 ≤ trusted</div>
-  <label class="offline" id="offline-toggle" title="Replay the committed, dated fixtures in data/fixtures/ instead of reading Blockscout. For when Blockscout is down mid-demo.">
-    <input type="checkbox" id="offline"> offline · replay dated fixtures
-  </label>
+  <div class="brand">
+    <h1>KYA <span>· Know Your Agent</span></h1>
+    <p class="tagline">Read-only payer preflight for x402 settlement</p>
+    <p class="lede">Reads a payer's Base track record and answers with a signed reputation verdict before settlement. The same check can run as a gate in the seller's own settlement process; this hosted page reads and explains — it does not execute payment.</p>
+  </div>
+  <div class="meta">
+    <div class="rule" id="rule">suspicious ≤ 84 &lt; unknown &lt; 193 ≤ trusted</div>
+    <label class="offline" id="offline-toggle" for="offline" title="Replay the committed, dated fixtures in data/fixtures/ instead of reading Blockscout. For when Blockscout is down mid-demo.">
+      <input type="checkbox" id="offline" aria-label="Replay committed fixtures in offline mode"> fixture replay · offline
+    </label>
+  </div>
 </header>
 
+<div class="compare-context" aria-label="Comparison context">
+  <div class="compare-context__label">Comparison</div>
+  <p class="compare-context__text">Independent payer preflights · same verifier, separate payer histories, read-only comparison.</p>
+</div>
+
 <main>
-  <section class="panel" data-panel="a" aria-label="Agent A">
-    <form>
-      <input type="text" name="address" placeholder="0x… agent address" autocomplete="off" spellcheck="false" aria-label="address">
-      <button type="submit" class="verify">Verify</button>
+  <section class="panel" data-panel="a" aria-label="Payer A">
+    <div class="panel-head"><h2>Payer A</h2><span>independent preflight result</span></div>
+    <form aria-label="Payer A address lookup">
+      <div style="flex: 1 1 100%; min-width: 0;">
+        <label class="field-label" for="payer-a-address">Payer A address</label>
+        <input id="payer-a-address" type="text" name="address" placeholder="0x… payer address" autocomplete="off" spellcheck="false" aria-label="Payer A address">
+      </div>
+      <button type="submit" class="verify" aria-label="Verify Payer A address">Verify Payer A</button>
     </form>
-    <div class="presets"><span class="label">demo:</span></div>
-    <div class="result"><div class="idle">Enter an address, or pick a demo agent.</div></div>
+    <div class="presets"><span class="label">demo payers:</span></div>
+    <div class="result" aria-live="polite" aria-atomic="true"><div class="idle">Enter a payer address, or pick a demo payer.</div></div>
   </section>
 
-  <section class="panel" data-panel="b" aria-label="Agent B">
-    <form>
-      <input type="text" name="address" placeholder="0x… agent address" autocomplete="off" spellcheck="false" aria-label="address">
-      <button type="submit" class="verify">Verify</button>
+  <section class="panel" data-panel="b" aria-label="Payer B">
+    <div class="panel-head"><h2>Payer B</h2><span>independent preflight result</span></div>
+    <form aria-label="Payer B address lookup">
+      <div style="flex: 1 1 100%; min-width: 0;">
+        <label class="field-label" for="payer-b-address">Payer B address</label>
+        <input id="payer-b-address" type="text" name="address" placeholder="0x… payer address" autocomplete="off" spellcheck="false" aria-label="Payer B address">
+      </div>
+      <button type="submit" class="verify" aria-label="Verify Payer B address">Verify Payer B</button>
     </form>
-    <div class="presets"><span class="label">demo:</span></div>
-    <div class="result"><div class="idle">Enter an address, or pick a demo agent.</div></div>
+    <div class="presets"><span class="label">demo payers:</span></div>
+    <div class="result" aria-live="polite" aria-atomic="true"><div class="idle">Enter a payer address, or pick a demo payer.</div></div>
   </section>
 </main>
 
@@ -185,7 +282,7 @@
     ],
     b: [
       { label: 'fresh · exchange-funded · days old', address: '0xBEabA203Ef49Ee2828b77b0B7E84839e76092787' },
-      { label: 'sanctioned · OFAC SDN', address: '0x098b716b8aaf21512996dc57eb0615e2383e2f96' },
+      { label: 'sanctioned · OFAC SDN', address: '0x098B716B8Aaf21512996dC57EB0615e2383E2f96' },
     ],
   }
   const TIMEOUT_MS = 90000
@@ -209,35 +306,34 @@
   function verdictLabel(a) { return a.gated ? 'GATED' : a.verdict.toUpperCase() }
   const fmt = (n, d = 3) => Number(n).toFixed(d)
   const day = (iso) => iso ? iso.slice(0, 10) : 'n/a'
+  const timestamp = (value) => value ? value.replace('T', ' ').replace(/\.\d{3}Z$/, ' UTC').replace(/Z$/, ' UTC') : 'n/a'
 
-  function renderResult(container, { attestation: a, breakdown: b, source, captured_at }) {
+  function renderResult(container, { attestation: a, breakdown: b, source, captured_at, degraded }) {
     const cls = verdictClass(a)
     const frag = document.createDocumentFragment()
+    container.setAttribute('role', 'status')
+    container.setAttribute('aria-live', 'polite')
+    container.setAttribute('aria-atomic', 'true')
+    container.setAttribute('aria-busy', 'false')
     // The cutoffs come from the server (config.ts), not from this file.
     document.getElementById('rule').textContent = `suspicious ≤ ${b.cutoffs.suspicious_max} < unknown < ${b.cutoffs.trusted_min} ≤ trusted`
 
-    // 1. verdict + score
+    // Level 1 — the decision: verdict, score, payer, data source, main reason.
+    const decision = el('section', { class: 'decision' })
     const row = el('div', { class: 'verdict-row' },
       el('span', { class: `badge ${cls}`, text: verdictLabel(a) }),
       el('span', { class: 'score' }, String(a.score), el('small', { text: `/ ${b.scale}` })),
     )
-    if (a.gated) row.append(el('span', { class: 'gate-note', text: 'compliance gate: not scored, blocked' }))
-    frag.append(row)
-    frag.append(el('div', { class: 'address', text: a.address }))
-    // Where the history came from. A fixture is a dated capture of a live
-    // address; the attestation carries that date as evidence.fetched_at.
-    if (source === 'fixture') {
-      frag.append(el('div', { class: 'source fixture', text: `OFFLINE · fixture captured ${(captured_at || a.evidence.fetched_at).replace('T', ' ').slice(0, 16)} UTC, replayed without network` }))
-    } else if (source === 'cache') {
-      frag.append(el('div', { class: 'source cache', text: `cached · read ${(captured_at || a.evidence.fetched_at).replace('T', ' ').slice(0, 16)} UTC` }))
-    }
-
-    // 2. the reason
-    frag.append(el('div', { class: `reason ${cls}`, text: a.summary }))
-    frag.append(el('ul', { class: 'reasons' }, ...a.reasons.map((r) => el('li', { text: r }))))
+    if (a.gated) row.append(el('span', { class: 'gate-note', text: 'Policy gate: blocked before settlement · not scored' }))
+    decision.append(row)
+    decision.append(el('div', { class: 'address', text: a.address }))
+    // the reason: the most important text on the page
+    decision.append(el('div', { class: `reason ${cls}`, text: a.summary }))
+    decision.append(el('ul', { class: 'reasons' }, ...a.reasons.map((r) => el('li', { text: r }))))
+    frag.append(decision)
 
     // 3. score against the calibrated cutoffs, then the axes
-    frag.append(el('h3', {}, 'Score ', el('span', { text: `· weighted geometric mean of three axes; a weak axis cannot be bought back with a strong one` })))
+    frag.append(el('h3', {}, 'Score composition ', el('span', { text: '· server-provided arithmetic; a weak axis cannot be bought back with a strong one' })))
     const { suspicious_max: sMax, trusted_min: tMin } = b.cutoffs
     const pct = (v) => `${(100 * Math.min(Math.max(v, 0), b.scale) / b.scale).toFixed(2)}%`
     frag.append(el('div', { class: 'scorebar' },
@@ -282,37 +378,69 @@
     ))
     frag.append(el('div', { class: 'note', text: 'Diversity and cadence did not separate the reference set (cadence was inverted: fresh bots fire 150 tx a day). Shown as evidence, not counted. Cadence only enters as a burst penalty.' }))
 
-    // 5. evidence
+    // 5. proof trail: provenance and attestation remain separate kinds of evidence.
     const e = a.evidence
-    frag.append(el('h3', {}, 'Evidence ', el('span', { text: '· verify it yourself' })))
-    frag.append(el('div', { class: 'evidence' },
-      el('span', { class: 'k', text: 'Blockscout' }), el('a', { href: e.blockscout_url, target: '_blank', rel: 'noopener', text: `${e.blockscout_url.replace(/^https?:\/\//, '').replace(a.address, short(a.address))} ↗` }),
-      el('span', { class: 'k', text: 'window' }), el('span', { text: `last ${e.window.size} of ≤ ${e.window.max} transactions${e.window.capped ? ' (capped)' : ''} · chain ${e.chain_id} · fetched ${e.fetched_at.replace('T', ' ').slice(0, 19)} UTC` }),
-      el('span', { class: 'k', text: 'funder' }), el('span', {}, s.funding.source
-        ? el('span', {},
-            el('code', { text: s.funding.source }),
-            ` via ${s.funding.via}${s.funding.first_inbound_at ? `, ${day(s.funding.first_inbound_at)}` : ''}`,
-            // label_source non-null = exact match against a named, pinned list.
-            // Null on an exchange funder = the behavioural heuristic fired and
-            // nobody has named the wallet. The class, and so the score, is the
-            // same either way; only the strength of the claim differs.
-            s.funding.label_source
-              ? el('span', {}, ' · ', el('b', { text: s.funding.funder_label }), ` · identity confirmed · ${s.funding.label_source}`)
-              : s.funding.label ? ` · ${s.funding.label}${s.funding.class === 'exchange' ? ' · identity inferred, not confirmed' : ''}` : '')
-        : 'no inbound transfer ever'),
-      el('span', { class: 'k', text: 'attester' }), el('code', { text: a.attester }),
-      el('span', { class: 'k', text: 'signature' }), el('span', {}, el('code', { text: `${a.signature.slice(0, 26)}…` }), ` EIP-191, issued ${a.issued_at.replace('T', ' ').slice(0, 19)} UTC`),
+    frag.append(el('h3', {}, 'Proof trail ', el('span', { text: '· provenance and attestation' })))
+    const sourceText = source === 'fixture'
+      ? 'Fixture replay · captured data, replayed without network'
+      : source === 'cache'
+        ? 'Cache · stored upstream read, not a live read'
+        : source === 'live'
+          ? 'Live read · upstream response identified as live'
+          : `Source · ${source || 'unknown'}`
+    const sourceClass = degraded ? 'source degraded' : `source ${source || 'unknown'}`
+    frag.append(el('div', { class: 'proof-group' },
+      el('h4', { class: 'proof-heading' }, 'Evidence provenance'),
+      el('div', { class: 'evidence' },
+        el('span', { class: 'k', text: 'Source' }), el('span', { class: sourceClass, text: `${sourceText}${degraded ? ` · degraded: ${degraded}` : ''}` }),
+        el('span', { class: 'k', text: 'Captured' }), el('span', { class: 'value', text: timestamp(captured_at) }),
+        el('span', { class: 'k', text: 'Fetched' }), el('span', { class: 'value', text: timestamp(e.fetched_at) }),
+        el('span', { class: 'k', text: 'Chain' }), el('code', { class: 'value', text: String(e.chain_id) }),
+        el('span', { class: 'k', text: 'Window' }), el('span', { class: 'value', text: `last ${e.window.size} of ≤ ${e.window.max} transactions${e.window.capped ? ' · capped' : ''}` }),
+        el('span', { class: 'k', text: 'Funder' }), el('span', { class: 'value' }, s.funding.source
+          ? el('span', {},
+              el('code', { text: s.funding.source }),
+              ` via ${s.funding.via}${s.funding.first_inbound_at ? `, ${day(s.funding.first_inbound_at)}` : ''}`,
+              s.funding.label_source
+                ? el('span', {}, ' · ', el('b', { text: s.funding.funder_label }), ` · source ${s.funding.label_source}`)
+                : s.funding.label ? ` · ${s.funding.label}` : '')
+          : 'no inbound transfer ever'),
+        el('span', { class: 'k', text: 'Inspect source' }), el('a', {
+          href: e.blockscout_url,
+          target: '_blank',
+          rel: 'noopener',
+          'aria-label': `Open Blockscout evidence for ${short(a.address)}`,
+          text: `${e.blockscout_url.replace(/^https?:\/\//, '').replace(a.address, short(a.address))} ↗`,
+        }),
+      ),
+    ))
+    frag.append(el('div', { class: 'proof-group' },
+      el('h4', { class: 'proof-heading' }, 'Attestation'),
+      el('div', { class: 'evidence' },
+        el('span', { class: 'k', text: 'Attester' }), el('code', { class: 'value', text: a.attester }),
+        el('span', { class: 'k', text: 'Signature' }), el('code', { class: 'value', text: `${a.signature} · EIP-191` }),
+        el('span', { class: 'k', text: 'Issued' }), el('span', { class: 'value', text: timestamp(a.issued_at) }),
+      ),
+      el('div', { class: 'note', text: 'The signature is EIP-191 over the canonical attestation body. Recover the signer and compare it with the attester address you trust.' }),
     ))
 
     container.replaceChildren(frag)
   }
 
   function renderError(container, title, detail) {
+    container.setAttribute('role', 'alert')
+    container.setAttribute('aria-live', 'assertive')
+    container.setAttribute('aria-atomic', 'true')
+    container.setAttribute('aria-busy', 'false')
     container.replaceChildren(el('div', { class: 'error' }, el('b', { text: title }), detail ? el('span', { text: detail }) : null))
   }
 
   function renderLoading(container, address) {
     const elapsed = el('span', { class: 'elapsed', text: '0s' })
+    container.setAttribute('role', 'status')
+    container.setAttribute('aria-live', 'polite')
+    container.setAttribute('aria-atomic', 'true')
+    container.setAttribute('aria-busy', 'true')
     container.replaceChildren(el('div', { class: 'status' },
       el('div', { class: 'spinner' }),
       el('span', {}, `Reading Base history for ${short(address)}… `, elapsed),
@@ -338,7 +466,7 @@
       let body = null
       try { body = await res.json() } catch { /* not JSON */ }
       if (res.status === 200 && body && body.attestation) {
-        renderResult(container, body)
+        renderResult(container, { ...body, degraded: res.headers.get('X-KYA-Degraded') })
       } else if (res.status === 400) {
         renderError(container, 'Not a valid address', body?.error || `HTTP 400`)
       } else if (res.status === 404 && body?.offline) {
@@ -375,8 +503,9 @@
     })
     const presets = panel.querySelector('.presets')
     for (const p of PRESETS[key] || []) {
-      presets.append(el('button', { type: 'button', title: p.address, text: p.label }))
-      presets.lastChild.addEventListener('click', () => {
+      const presetButton = el('button', { type: 'button', title: p.address, 'aria-label': `Load demo payer ${p.label} for ${panel.dataset.panel.toUpperCase()}`, text: p.label })
+      presets.append(presetButton)
+      presetButton.addEventListener('click', () => {
         input.value = p.address
         void verifyInto(panel, p.address)
       })
