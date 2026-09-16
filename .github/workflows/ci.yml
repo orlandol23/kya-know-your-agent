@@ -5,6 +5,12 @@ on:
     branches: [master]
   pull_request:
 
+# Least privilege by default. A job that needs to write (posting a PR comment,
+# for example) declares its own `permissions:`, which replaces this one for
+# that job rather than adding to it.
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
